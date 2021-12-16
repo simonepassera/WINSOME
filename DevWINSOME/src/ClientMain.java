@@ -1,13 +1,14 @@
 import java.io.*;
 import java.net.*;
+import java.util.Scanner;
 
 public class ClientMain {
     // Indirizzo del server WINSOME
     private static String SERVER_ADDRESS;
     // Numero di porta del server WINSOME
     private static int PORT_TCP;
-    // Tempo massimo per aprire la connessione con il server WINSOME
-    private static int timeout = 15000;
+    // Tempo massimo per aprire la connessione con il server WINSOME (ms)
+    private static int TIMEOUT = 15000;
 
     public static void main(String[] args) {
         // Controllo se esiste il file di configurazione
@@ -19,9 +20,9 @@ public class ClientMain {
         // Leggo il file di configurazione
         readConf(args[0]);
 
+        // Provo a risolvere l'indirizzo del server WINSOME
         InetAddress address = null;
 
-        // Provo a risolvere l'indirizzo del server WINSOME
         try {
             address = InetAddress.getByName(SERVER_ADDRESS);
         } catch (UnknownHostException e) {
@@ -35,8 +36,32 @@ public class ClientMain {
             InetSocketAddress socketAddress = new InetSocketAddress(address, PORT_TCP);
             System.out.println("Connessione con il server WINSOME ...");
             // Apro la connessione con il server WINSOME
-            winsomeServer.connect(socketAddress, timeout);
-            System.out.println("*** WINSOME ***");
+            //winsomeServer.connect(socketAddress, TIMEOUT);  *********************************
+
+            Scanner input = new Scanner(System.in);
+            String line;
+            String[] command;
+
+            // Pulisco il terminale
+            System.out.print("\033[H\033[2J");
+            System.out.flush();
+
+            System.out.print("\033[1m*** WINSOME ***\033[22m\n> ");
+
+            // Leggo i comandi
+            while (!(line = input.nextLine()).equals("exit")) {
+                command = line.split(" ");
+
+                switch (command[0]) {
+                    case "help": help(); break;
+                    default: System.out.println("\033[1m<\033[22m Comando non trovato (Prova 'help' per maggiori informazioni)");
+                }
+
+                System.out.flush();
+                System.out.print("> ");
+            }
+
+            System.out.println("\033[1m<\033[22m Arrivederci :)");
         } catch (SocketTimeoutException e) {
             System.err.println("Timeout per la connessione con il server WINSOME");
             System.exit(1);
@@ -53,7 +78,7 @@ public class ClientMain {
             String line;
             String[] values;
             // Array per ricordare le stringhe di configurazione incontrate
-            int[] stringSet = new int[2];
+            int[] stringSet = new int[3];
 
             // Leggo una linea
             while ((line = configFile.readLine()) != null) {
@@ -89,6 +114,17 @@ public class ClientMain {
 
                         stringSet[1] = 1;
                         break;
+                    case "TIMEOUT":
+                        try {
+                            TIMEOUT = Integer.parseInt(values[1].trim());
+                            if (TIMEOUT < 0) throw new NumberFormatException();
+                        } catch (NumberFormatException e) {
+                            System.err.println("File di configurazione: TIMEOUT -> valore invalido");
+                            System.exit(1);
+                        }
+
+                        stringSet[2] = 1;
+                        break;
                 }
             }
 
@@ -106,5 +142,14 @@ public class ClientMain {
             System.err.println(e.getMessage());
             System.exit(1);
         }
+    }
+
+    private static void help() {
+        System.out.println("\033[1m<\033[22m Comandi:");
+        System.out.println("\033[1m<\033[22m \033[1mregister\033[22m <username> <password> <tags>\033[50Gspiegazione");
+        System.out.println("\033[1m<\033[22m \033[1mlogin\033[22m <username> <password>\033[50Gspiegazione");
+        System.out.println("\033[1m<\033[22m \033[1mlogout\033[22m \033[50Geffettua il logout dal servizio.");
+        System.out.println("\033[1m<\033[22m \033[1mhelp\033[22m \033[50Gmostra la lista dei comandi.");
+        System.out.println("\033[1m<\033[22m \033[1mexit\033[22m \033[50Gtermina il processo.");
     }
 }
