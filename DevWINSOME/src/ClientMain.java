@@ -1,3 +1,5 @@
+// @Author Simone Passera
+
 import java.io.*;
 import java.net.*;
 import java.util.Scanner;
@@ -36,7 +38,7 @@ public class ClientMain {
             InetSocketAddress socketAddress = new InetSocketAddress(address, PORT_TCP);
             System.out.println("Connessione con il server WINSOME ...");
             // Apro la connessione con il server WINSOME
-            //winsomeServer.connect(socketAddress, TIMEOUT);  *********************************
+            winsomeServer.connect(socketAddress, TIMEOUT);
 
             Scanner input = new Scanner(System.in);
             String line;
