@@ -2,6 +2,9 @@
 
 import java.io.*;
 import java.net.*;
+import java.net.UnknownHostException;
+import java.rmi.*;
+import java.rmi.registry.*;
 import java.util.concurrent.*;
 
 public class ServerMain {
@@ -10,6 +13,8 @@ public class ServerMain {
     // Indirizzo e porta di multicast a cui inviare la notifica di avvenuto calcolo delle ricompense
     private static InetAddress MULTICAST_ADDRESS;
     private static int MULTICAST_PORT;
+    // Porta del registry
+    private static int REGISTRY_PORT;
 
     public static void main(String[] args) {
         // Controllo se esiste il file di configurazione
@@ -21,15 +26,42 @@ public class ServerMain {
         // Leggo il file di configurazione
         readConf(args[0]);
 
+        Registry registry = null;
+
+        // Creo il registry
+        try {
+            registry = LocateRegistry.createRegistry(REGISTRY_PORT);
+        } catch (RemoteException e) {
+            System.err.println("Creazione del registry: " + e.getMessage());
+            System.exit(1);
+        }
+
+        WinsomeRMIServices rmiServices = null;
+
+        // Creo ed esporto l'oggetto remoto
+        try {
+            rmiServices = new WinsomeRMI();
+        } catch (RemoteException e) {
+            System.err.println("Creazione dell'oggeto remoto: " + e.getMessage());
+            System.exit(1);
+        }
+
+        // Registro l'oggetto remoto nel registry
+        try {
+            registry.rebind("WINSOME", rmiServices);
+        } catch (RemoteException e) {
+            System.err.println("Registrazione dell' oggetto remoto nel registry: " + e.getMessage());
+            System.exit(1);
+        }
+
         // Creo il listen socket sulla porta specificata nel file di configurazione
         try (ServerSocket listenSocket = new ServerSocket(PORT_TCP, 1)) {
-            ExecutorService pool = Executors.newCachedThreadPool();
+            ExecutorService pool = new ThreadPoolExecutor(10, Integer.MAX_VALUE, 60, TimeUnit.SECONDS, new SynchronousQueue<>());
 
             System.out.println("Server avviato ...");
 
             while (true) {
-                Socket user = listenSocket.accept();
-                System.out.println(user);
+                pool.execute(new UserManager(listenSocket.accept()));
             }
         } catch (IOException e) {
             System.err.println(e.getMessage());
@@ -44,7 +76,7 @@ public class ServerMain {
             String line;
             String[] values;
             // Array per ricordare le stringhe di configurazione incontrate
-            int[] stringSet = new int[3];
+            int[] stringSet = new int[4];
 
             // Leggo una linea
             while ((line = configFile.readLine()) != null) {
@@ -91,6 +123,17 @@ public class ServerMain {
                         }
 
                         stringSet[2] = 1;
+                        break;
+                    case "REGISTRY_PORT":
+                        try {
+                            REGISTRY_PORT = Integer.parseInt(values[1].trim());
+                            if (REGISTRY_PORT < 0 || REGISTRY_PORT > 65535) throw new NumberFormatException();
+                        } catch (NumberFormatException e) {
+                            System.err.println("File di configurazione: REGISTRY_PORT -> valore invalido");
+                            System.exit(1);
+                        }
+
+                        stringSet[3] = 1;
                         break;
                 }
             }

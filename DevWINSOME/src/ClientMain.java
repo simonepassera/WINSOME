@@ -2,7 +2,13 @@
 
 import java.io.*;
 import java.net.*;
-import java.util.Scanner;
+import java.rmi.NotBoundException;
+import java.rmi.RemoteException;
+import java.rmi.registry.LocateRegistry;
+import java.rmi.registry.Registry;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.*;
 
 public class ClientMain {
     // Indirizzo del server WINSOME
@@ -11,6 +17,12 @@ public class ClientMain {
     private static int PORT_TCP;
     // Tempo massimo per aprire la connessione con il server WINSOME (ms)
     private static int TIMEOUT = 15000;
+    // Indirizzo del registry
+    private static String REGISTRY_ADDRESS;
+    // Porta del registry
+    private static int REGISTRY_PORT;
+    // Oggetto remoto del server WINSOME
+    private static WinsomeRMIServices winsomeRMI = null;
 
     public static void main(String[] args) {
         // Controllo se esiste il file di configurazione
@@ -29,6 +41,24 @@ public class ClientMain {
             address = InetAddress.getByName(SERVER_ADDRESS);
         } catch (UnknownHostException e) {
             System.err.println("Non riesco a risolvere l'indirizzo del server (" + SERVER_ADDRESS + ")");
+            System.exit(1);
+        }
+
+        // Ottengo un riferimento al registry
+        Registry registry = null;
+
+        try {
+            registry = LocateRegistry.getRegistry(REGISTRY_ADDRESS, REGISTRY_PORT);
+        } catch (RemoteException e) {
+            System.err.println("Non riesco ad ottenere il riferimento al registry (" + REGISTRY_ADDRESS + ":" + REGISTRY_PORT + ")");
+            System.exit(1);
+        }
+
+        // Creo una instanza dell'oggetto remoto
+        try {
+            winsomeRMI = (WinsomeRMIServices) registry.lookup("WINSOME");
+        } catch (RemoteException | NotBoundException e) {
+            System.err.println("Non riesco ad ottenere il riferimento all'oggetto remoto: " + e.getMessage());
             System.exit(1);
         }
 
@@ -56,6 +86,15 @@ public class ClientMain {
 
                 switch (command[0]) {
                     case "help": help(); break;
+                    case "register":
+                        if (command.length < 4 || command.length > 8) { System.out.println("\033[1m<\033[22m \033[1mregister\033[22m <username> <password> <tags [\033[1mmax 5\033[22m]>"); break; }
+
+                        ArrayList<String> tags = new ArrayList<>();
+                        for (int i = 3; i < command.length; i++)
+                            tags.add(command[i]);
+
+                        register(command[1], command[2], tags);
+                        break;
                     default: System.out.println("\033[1m<\033[22m Comando non trovato (Prova 'help' per maggiori informazioni)");
                 }
 
@@ -80,7 +119,7 @@ public class ClientMain {
             String line;
             String[] values;
             // Array per ricordare le stringhe di configurazione incontrate
-            int[] stringSet = new int[3];
+            int[] stringSet = new int[5];
 
             // Leggo una linea
             while ((line = configFile.readLine()) != null) {
@@ -127,6 +166,27 @@ public class ClientMain {
 
                         stringSet[2] = 1;
                         break;
+                    case "REGISTRY_ADDRESS":
+                        REGISTRY_ADDRESS = values[1].trim();
+
+                        if (REGISTRY_ADDRESS.length() == 0) {
+                            System.err.println("File di configurazione: REGISTRY_ADDRESS -> valore invalido");
+                            System.exit(1);
+                        }
+
+                        stringSet[3] = 1;
+                        break;
+                    case "REGISTRY_PORT":
+                        try {
+                            REGISTRY_PORT = Integer.parseInt(values[1].trim());
+                            if (REGISTRY_PORT < 0 || REGISTRY_PORT > 65535) throw new NumberFormatException();
+                        } catch (NumberFormatException e) {
+                            System.err.println("File di configurazione: REGISTRY_PORT -> valore invalido");
+                            System.exit(1);
+                        }
+
+                        stringSet[4] = 1;
+                        break;
                 }
             }
 
@@ -148,10 +208,28 @@ public class ClientMain {
 
     private static void help() {
         System.out.println("\033[1m<\033[22m Comandi:");
-        System.out.println("\033[1m<\033[22m \033[1mregister\033[22m <username> <password> <tags>\033[50Gspiegazione");
+        System.out.println("\033[1m<\033[22m \033[1mregister\033[22m <username> <password> <tags>\033[50Ginserisce un nuovo utente, <tags> è una lista di tag separati da uno spazio, al massimo 5 tag.");
         System.out.println("\033[1m<\033[22m \033[1mlogin\033[22m <username> <password>\033[50Gspiegazione");
         System.out.println("\033[1m<\033[22m \033[1mlogout\033[22m \033[50Geffettua il logout dal servizio.");
         System.out.println("\033[1m<\033[22m \033[1mhelp\033[22m \033[50Gmostra la lista dei comandi.");
         System.out.println("\033[1m<\033[22m \033[1mexit\033[22m \033[50Gtermina il processo.");
+    }
+
+    private static void register(String username, String password, ArrayList<String> tags) {
+        MessageDigest messageDigest = null;
+
+        try {
+            messageDigest = MessageDigest.getInstance("SHA-256");
+        } catch (NoSuchAlgorithmException e ) {}
+
+        messageDigest.update(password.getBytes());
+
+        byte[] digest = messageDigest.digest();
+
+        StringBuilder hexString = new StringBuilder();
+
+        for (byte b : digest) {
+            hexString.append(Integer.toHexString(Byte.toUnsignedInt(b)));
+        }
     }
 }
