@@ -2,12 +2,10 @@
 
 import java.io.*;
 import java.net.*;
-import java.rmi.NotBoundException;
-import java.rmi.RemoteException;
-import java.rmi.registry.LocateRegistry;
-import java.rmi.registry.Registry;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
+import java.net.UnknownHostException;
+import java.rmi.*;
+import java.rmi.registry.*;
+import java.security.*;
 import java.util.*;
 
 public class ClientMain {
@@ -90,8 +88,9 @@ public class ClientMain {
                         if (command.length < 4 || command.length > 8) { System.out.println("\033[1m<\033[22m \033[1mregister\033[22m <username> <password> <tags [\033[1mmax 5\033[22m]>"); break; }
 
                         ArrayList<String> tags = new ArrayList<>();
-                        for (int i = 3; i < command.length; i++)
-                            tags.add(command[i]);
+                        for (int i = 3; i < command.length; i++) tags.add(command[i]);
+
+                        System.out.println(command[1]);
 
                         register(command[1], command[2], tags);
                         break;
@@ -220,7 +219,10 @@ public class ClientMain {
 
         try {
             messageDigest = MessageDigest.getInstance("SHA-256");
-        } catch (NoSuchAlgorithmException e ) {}
+        } catch (NoSuchAlgorithmException e ) {
+            System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
+            return;
+        }
 
         messageDigest.update(password.getBytes());
 
@@ -228,8 +230,25 @@ public class ClientMain {
 
         StringBuilder hexString = new StringBuilder();
 
-        for (byte b : digest) {
-            hexString.append(Integer.toHexString(Byte.toUnsignedInt(b)));
+        for (byte b : digest) hexString.append(Integer.toHexString(Byte.toUnsignedInt(b)));
+
+        int code = 0;
+
+        try {
+            code = winsomeRMI.register(username, hexString.toString(), tags);
+        } catch (RemoteException | NullPointerException e) {
+            System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
+            return;
+        }
+
+        switch (code) {
+            case 0: System.out.println("\033[1m<\033[22m ok"); break;
+            case 1: System.out.println("\033[1m<\033[22m errore, username vuoto"); break;
+            case 2: System.out.println("\033[1m<\033[22m errore, utente " + username + " già esistente"); break;
+            case 3: System.out.println("\033[1m<\033[22m errore, password vuota"); break;
+            case 4: System.out.println("\033[1m<\033[22m errore, lista di tag vuota"); break;
+            case 5: System.out.println("\033[1m<\033[22m errore, lista di tag troppo grande [max 5]"); break;
+            case 6: System.out.println("\033[1m<\033[22m errore, lista di tag contiene valori vuoti"); break;
         }
     }
 }

@@ -5,6 +5,7 @@ import java.net.*;
 import java.net.UnknownHostException;
 import java.rmi.*;
 import java.rmi.registry.*;
+import java.util.ArrayList;
 import java.util.concurrent.*;
 
 public class ServerMain {
@@ -15,6 +16,11 @@ public class ServerMain {
     private static int MULTICAST_PORT;
     // Porta del registry
     private static int REGISTRY_PORT;
+
+    // Mappa (username, password)
+    public static ConcurrentHashMap<String, String> users;
+    // Mappa (username, tags)
+    public static ConcurrentHashMap<String, ArrayList<String>> tags;
 
     public static void main(String[] args) {
         // Controllo se esiste il file di configurazione
@@ -35,6 +41,10 @@ public class ServerMain {
             System.err.println("Creazione del registry: " + e.getMessage());
             System.exit(1);
         }
+
+        // inizializzo le strutture dati
+        users = new ConcurrentHashMap<>();
+        tags = new ConcurrentHashMap<>();
 
         WinsomeRMIServices rmiServices = null;
 

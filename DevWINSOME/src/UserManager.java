@@ -1,3 +1,5 @@
+// @Author Simone Passera
+
 import java.net.Socket;
 
 public class UserManager implements Runnable {
