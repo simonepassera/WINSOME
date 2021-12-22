@@ -21,6 +21,10 @@ public class ClientMain {
     private static int REGISTRY_PORT;
     // Oggetto remoto del server WINSOME
     private static WinsomeRMIServices winsomeRMI = null;
+    // Settata dal comando [verbose]
+    private static boolean verbose = false;
+    // Stringa che contiene lo username se l'utente ha effettuato il login, oppure null in caso contrario
+    private static String usernameLogin = null;
 
     public static void main(String[] args) {
         // Controllo se esiste il file di configurazione
@@ -84,6 +88,7 @@ public class ClientMain {
 
                 switch (command[0]) {
                     case "help": help(); break;
+                    case "verbose": verbose = !verbose; break;
                     case "register":
                         if (command.length < 4 || command.length > 8) { System.out.println("\033[1m<\033[22m \033[1mregister\033[22m <username> <password> <tags [\033[1mmax 5\033[22m]>"); break; }
 
@@ -93,6 +98,16 @@ public class ClientMain {
                         System.out.println(command[1]);
 
                         register(command[1], command[2], tags);
+                        break;
+                    case "login":
+                        if (command.length != 3) { System.out.println("\033[1m<\033[22m \033[1mlogin\033[22m <username> <password>"); break; }
+                        if (usernameLogin != null) {
+                            if (usernameLogin.equals(command[1])) System.out.println("\033[1m<\033[22m C'è un utente già collegato, deve essere prima scollegato)");
+                            else System.out.println("\033[1m<\033[22m " + usernameLogin + "già collegato");
+                            break;
+                        }
+
+                        login(command[1], command[2], winsomeServer);
                         break;
                     default: System.out.println("\033[1m<\033[22m Comando non trovato (Prova 'help' per maggiori informazioni)");
                 }
@@ -208,21 +223,15 @@ public class ClientMain {
     private static void help() {
         System.out.println("\033[1m<\033[22m Comandi:");
         System.out.println("\033[1m<\033[22m \033[1mregister\033[22m <username> <password> <tags>\033[50Ginserisce un nuovo utente, <tags> è una lista di tag separati da uno spazio, al massimo 5 tag.");
-        System.out.println("\033[1m<\033[22m \033[1mlogin\033[22m <username> <password>\033[50Gspiegazione");
+        System.out.println("\033[1m<\033[22m \033[1mlogin\033[22m <username> <password>\033[50Glogin di un utente già registrato per accedere al servizio.");
         System.out.println("\033[1m<\033[22m \033[1mlogout\033[22m \033[50Geffettua il logout dal servizio.");
         System.out.println("\033[1m<\033[22m \033[1mhelp\033[22m \033[50Gmostra la lista dei comandi.");
+        System.out.println("\033[1m<\033[22m \033[1mverbose\033[22m \033[50Gabilita la stampa dei codici di risposta dal server.");
         System.out.println("\033[1m<\033[22m \033[1mexit\033[22m \033[50Gtermina il processo.");
     }
 
-    private static void register(String username, String password, ArrayList<String> tags) {
-        MessageDigest messageDigest = null;
-
-        try {
-            messageDigest = MessageDigest.getInstance("SHA-256");
-        } catch (NoSuchAlgorithmException e ) {
-            System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
-            return;
-        }
+    private static String encrypt(String password) throws NoSuchAlgorithmException {
+        MessageDigest messageDigest = MessageDigest.getInstance("SHA-256");
 
         messageDigest.update(password.getBytes());
 
@@ -232,10 +241,23 @@ public class ClientMain {
 
         for (byte b : digest) hexString.append(Integer.toHexString(Byte.toUnsignedInt(b)));
 
+        return hexString.toString();
+    }
+
+    private static void register(String username, String password, ArrayList<String> tags) {
+        String hexPass = null;
+
+        try {
+            hexPass = encrypt(password);
+        } catch (NoSuchAlgorithmException e) {
+            System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
+            return;
+        }
+
         int code = 0;
 
         try {
-            code = winsomeRMI.register(username, hexString.toString(), tags);
+            code = winsomeRMI.register(username, hexPass, tags);
         } catch (RemoteException | NullPointerException e) {
             System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
             return;
@@ -249,6 +271,37 @@ public class ClientMain {
             case 4: System.out.println("\033[1m<\033[22m errore, lista di tag vuota"); break;
             case 5: System.out.println("\033[1m<\033[22m errore, lista di tag troppo grande [max 5]"); break;
             case 6: System.out.println("\033[1m<\033[22m errore, lista di tag contiene valori vuoti"); break;
+        }
+    }
+
+    private static void login(String username, String password, Socket server) {
+        String hexPass = null;
+
+        try {
+            hexPass = encrypt(password);
+        } catch (NoSuchAlgorithmException e) {
+            System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
+            return;
+        }
+
+        try (PrintWriter request = new PrintWriter(server.getOutputStream());
+             BufferedReader response = new BufferedReader(new InputStreamReader(server.getInputStream()))) {
+
+            request.println(100);
+            request.println(username);
+            request.println(password);
+            request.flush();
+
+            int code = Integer.parseInt(response.readLine());
+
+            String message = response.readLine();
+
+            if (code == 0) usernameLogin = username;
+
+            if (verbose) System.out.println("\033[1m<\033[22m [\033[1m" + code + "\033[22m] " + message);
+            else System.out.println("\033[1m<\033[22m " + message);
+        } catch (IOException | NumberFormatException e) {
+            System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
         }
     }
 }
