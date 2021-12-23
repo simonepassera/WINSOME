@@ -16,7 +16,6 @@ public class ServerMain {
     private static int MULTICAST_PORT;
     // Porta del registry
     private static int REGISTRY_PORT;
-
     // Mappa (username, password)
     public static ConcurrentHashMap<String, String> users;
     // Mappa (username, tags)

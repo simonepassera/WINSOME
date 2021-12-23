@@ -21,10 +21,12 @@ public class ClientMain {
     private static int REGISTRY_PORT;
     // Oggetto remoto del server WINSOME
     private static WinsomeRMIServices winsomeRMI = null;
+    // Stream di output verso il server
+    private static PrintWriter outRequest = null;
+    // Stream su cui ricevere dati dal server
+    private static BufferedReader inResponse = null;
     // Settata dal comando [verbose]
     private static boolean verbose = false;
-    // Stringa che contiene lo username se l'utente ha effettuato il login, oppure null in caso contrario
-    private static String usernameLogin = null;
 
     public static void main(String[] args) {
         // Controllo se esiste il file di configurazione
@@ -69,47 +71,42 @@ public class ClientMain {
             winsomeServer.bind(new InetSocketAddress(InetAddress.getLocalHost(), 0));
             InetSocketAddress socketAddress = new InetSocketAddress(address, PORT_TCP);
             System.out.println("Connessione con il server WINSOME ...");
-            // Apro la connessione con il server WINSOME
+            // Apro la connessione con il server WINSOME con timeout
             winsomeServer.connect(socketAddress, TIMEOUT);
-
+            // Inizializzo gli stream di comunicazione
+            outRequest = new PrintWriter(winsomeServer.getOutputStream());
+            inResponse = new BufferedReader(new InputStreamReader(winsomeServer.getInputStream()));
+            // Scanner per il parsing da linea di comando
             Scanner input = new Scanner(System.in);
             String line;
             String[] command;
-
             // Pulisco il terminale
             System.out.print("\033[H\033[2J");
             System.out.flush();
-
             System.out.print("\033[1m*** WINSOME ***\033[22m\n> ");
-
             // Leggo i comandi
             while (!(line = input.nextLine()).equals("exit")) {
                 command = line.split(" ");
 
                 switch (command[0]) {
                     case "help": help(); break;
-                    case "verbose": verbose = !verbose; break;
+                    case "verbose":
+                        if (verbose = !verbose) System.out.println("\033[1m<\033[22m abilitato");
+                        else System.out.println("\033[1m<\033[22m disabilitato");
+                        break;
                     case "register":
                         if (command.length < 4 || command.length > 8) { System.out.println("\033[1m<\033[22m \033[1mregister\033[22m <username> <password> <tags [\033[1mmax 5\033[22m]>"); break; }
 
                         ArrayList<String> tags = new ArrayList<>();
                         for (int i = 3; i < command.length; i++) tags.add(command[i]);
 
-                        System.out.println(command[1]);
-
                         register(command[1], command[2], tags);
                         break;
                     case "login":
                         if (command.length != 3) { System.out.println("\033[1m<\033[22m \033[1mlogin\033[22m <username> <password>"); break; }
-                        if (usernameLogin != null) {
-                            if (usernameLogin.equals(command[1])) System.out.println("\033[1m<\033[22m C'è un utente già collegato, deve essere prima scollegato)");
-                            else System.out.println("\033[1m<\033[22m " + usernameLogin + "già collegato");
-                            break;
-                        }
-
-                        login(command[1], command[2], winsomeServer);
+                        login(command[1], command[2]);
                         break;
-                    default: System.out.println("\033[1m<\033[22m Comando non trovato (Prova 'help' per maggiori informazioni)");
+                    default: System.out.println("\033[1m<\033[22m comando non trovato (Prova 'help' per maggiori informazioni)");
                 }
 
                 System.out.flush();
@@ -230,31 +227,17 @@ public class ClientMain {
         System.out.println("\033[1m<\033[22m \033[1mexit\033[22m \033[50Gtermina il processo.");
     }
 
-    private static String encrypt(String password) throws NoSuchAlgorithmException {
-        MessageDigest messageDigest = MessageDigest.getInstance("SHA-256");
-
-        messageDigest.update(password.getBytes());
-
-        byte[] digest = messageDigest.digest();
-
-        StringBuilder hexString = new StringBuilder();
-
-        for (byte b : digest) hexString.append(Integer.toHexString(Byte.toUnsignedInt(b)));
-
-        return hexString.toString();
-    }
-
     private static void register(String username, String password, ArrayList<String> tags) {
         String hexPass = null;
 
         try {
-            hexPass = encrypt(password);
+            hexPass = Hash.encrypt(password);
         } catch (NoSuchAlgorithmException e) {
             System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
             return;
         }
 
-        int code = 0;
+        WinsomeRMIServices.CodeReturn code = null;
 
         try {
             code = winsomeRMI.register(username, hexPass, tags);
@@ -263,45 +246,37 @@ public class ClientMain {
             return;
         }
 
-        switch (code) {
-            case 0: System.out.println("\033[1m<\033[22m ok"); break;
-            case 1: System.out.println("\033[1m<\033[22m errore, username vuoto"); break;
-            case 2: System.out.println("\033[1m<\033[22m errore, utente " + username + " già esistente"); break;
-            case 3: System.out.println("\033[1m<\033[22m errore, password vuota"); break;
-            case 4: System.out.println("\033[1m<\033[22m errore, lista di tag vuota"); break;
-            case 5: System.out.println("\033[1m<\033[22m errore, lista di tag troppo grande [max 5]"); break;
-            case 6: System.out.println("\033[1m<\033[22m errore, lista di tag contiene valori vuoti"); break;
-        }
+        if (verbose) System.out.println("\033[1m<\033[22m [\033[1m" + code.getCode() + "\033[22m] " + code.getMessage());
+        else System.out.println("\033[1m<\033[22m " + code.getMessage());
     }
 
-    private static void login(String username, String password, Socket server) {
+    private static void login(String username, String password) {
         String hexPass = null;
 
         try {
-            hexPass = encrypt(password);
+            hexPass = Hash.encrypt(password);
         } catch (NoSuchAlgorithmException e) {
             System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
             return;
         }
 
-        try (PrintWriter request = new PrintWriter(server.getOutputStream());
-             BufferedReader response = new BufferedReader(new InputStreamReader(server.getInputStream()))) {
+        outRequest.println("login");
+        outRequest.println(username);
+        outRequest.println(hexPass);
+        outRequest.flush();
 
-            request.println(100);
-            request.println(username);
-            request.println(password);
-            request.flush();
+        int code;
+        String message;
 
-            int code = Integer.parseInt(response.readLine());
-
-            String message = response.readLine();
-
-            if (code == 0) usernameLogin = username;
-
-            if (verbose) System.out.println("\033[1m<\033[22m [\033[1m" + code + "\033[22m] " + message);
-            else System.out.println("\033[1m<\033[22m " + message);
+        try {
+            code = Integer.parseInt(inResponse.readLine());
+            message = inResponse.readLine();
         } catch (IOException | NumberFormatException e) {
             System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
+            return;
         }
+
+        if (verbose) System.out.println("\033[1m<\033[22m [\033[1m" + code + "\033[22m] " + message);
+        else System.out.println("\033[1m<\033[22m " + message);
     }
 }
