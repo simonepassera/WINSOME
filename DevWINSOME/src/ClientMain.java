@@ -83,9 +83,13 @@ public class ClientMain {
             // Pulisco il terminale
             System.out.print("\033[H\033[2J");
             System.out.flush();
-            System.out.print("\033[1m*** WINSOME ***\033[22m\n> ");
+            System.out.println("\033[1m*** WINSOME ***\033[22m");
             // Leggo i comandi
-            while (!(line = input.nextLine()).equals("exit")) {
+            while (true) {
+                System.out.flush();
+                System.out.print("> ");
+
+                line = input.nextLine();
                 command = line.split(" ");
 
                 switch (command[0]) {
@@ -103,17 +107,18 @@ public class ClientMain {
                         register(command[1], command[2], tags);
                         break;
                     case "login":
-                        if (command.length != 3) { System.out.println("\033[1m<\033[22m \033[1mlogin\033[22m <username> <password>"); break; }
+                        if (command.length < 3) { System.out.println("\033[1m<\033[22m \033[1mlogin\033[22m <username> <password>"); break; }
                         login(command[1], command[2]);
+                        break;
+                    case "logout":
+                        logout();
+                        break;
+                    case "exit":
+                        exit();
                         break;
                     default: System.out.println("\033[1m<\033[22m comando non trovato (Prova 'help' per maggiori informazioni)");
                 }
-
-                System.out.flush();
-                System.out.print("> ");
             }
-
-            System.out.println("\033[1m<\033[22m Arrivederci :)");
         } catch (SocketTimeoutException e) {
             System.err.println("Timeout per la connessione con il server WINSOME");
             System.exit(1);
@@ -227,6 +232,19 @@ public class ClientMain {
         System.out.println("\033[1m<\033[22m \033[1mexit\033[22m \033[50Gtermina il processo.");
     }
 
+    private static void exit() {
+        outRequest.println("exit");
+        outRequest.flush();
+
+        try {
+            if (printResponse() == 200) {
+                System.exit(0);
+            }
+        } catch (IOException | NumberFormatException e) {
+            System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
+        }
+    }
+
     private static void register(String username, String password, ArrayList<String> tags) {
         String hexPass = null;
 
@@ -265,18 +283,35 @@ public class ClientMain {
         outRequest.println(hexPass);
         outRequest.flush();
 
+        try {
+            printResponse();
+        } catch (IOException | NumberFormatException e) {
+            System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
+        }
+    }
+
+    private static void logout() {
+        outRequest.println("logout");
+        outRequest.flush();
+
+        try {
+            printResponse();
+        } catch (IOException | NumberFormatException e) {
+            System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
+        }
+    }
+
+    private static int printResponse() throws NumberFormatException, IOException {
         int code;
         String message;
 
-        try {
-            code = Integer.parseInt(inResponse.readLine());
-            message = inResponse.readLine();
-        } catch (IOException | NumberFormatException e) {
-            System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
-            return;
-        }
+        code = Integer.parseInt(inResponse.readLine());
+        message = inResponse.readLine();
+
 
         if (verbose) System.out.println("\033[1m<\033[22m [\033[1m" + code + "\033[22m] " + message);
         else System.out.println("\033[1m<\033[22m " + message);
+
+        return code;
     }
 }

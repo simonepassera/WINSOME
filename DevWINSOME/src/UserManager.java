@@ -17,18 +17,37 @@ public class UserManager implements Runnable {
     public void run() {
         try (PrintWriter response = new PrintWriter(user.getOutputStream());
              BufferedReader request = new BufferedReader(new InputStreamReader(user.getInputStream()))) {
+            String command;
+
             while (true) {
-                switch (request.readLine()) {
+                command = request.readLine();
+                if (command == null) return;
+
+                switch (command) {
+                    case "exit":
+                        exit(response);
+                        return;
                     case "login":
                         String username =  request.readLine();
                         String password = request.readLine();
                         login(username, password, response);
+                        break;
+                    case "logout":
+                        logout(response);
                         break;
                 }
             }
         } catch (IOException e) {
             System.err.println("Errore (" + Thread.currentThread().getName() + "): " + e.getMessage());
         }
+    }
+
+    private void exit(PrintWriter response) {
+        response.println(200);
+        response.println("Arrivederci :)");
+        response.flush();
+
+        try { user.close(); } catch (IOException e) {}
     }
 
     private void login(String username, String password, PrintWriter response) {
@@ -69,7 +88,7 @@ public class UserManager implements Runnable {
 
         if (ServerMain.users.containsKey(username)) {
             if (!ServerMain.users.get(username).equals(password)) {
-                response.println(406);
+                response.println(407);
                 response.println("errore, password non corretta");
                 response.flush();
                 return;
@@ -85,5 +104,20 @@ public class UserManager implements Runnable {
         }
 
         response.flush();
+    }
+
+    private void logout(PrintWriter response) {
+        if (usernameLogin == null) {
+            response.println(406);
+            response.println("errore, nessun utente connesso");
+            response.flush();
+            return;
+        }
+
+        response.println(200);
+        response.println("utente " + usernameLogin + " disconnesso");
+        response.flush();
+
+        usernameLogin = null;
     }
 }
