@@ -241,7 +241,7 @@ public class ClientMain {
 
         try {
             code = winsomeRMI.register(username, hexPass, tags);
-        } catch (RemoteException | NullPointerException e) {
+        } catch (RemoteException e) {
             System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
             return;
         }

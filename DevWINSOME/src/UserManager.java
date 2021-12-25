@@ -33,22 +33,22 @@ public class UserManager implements Runnable {
 
     private void login(String username, String password, PrintWriter response) {
         if (username == null || password == null) {
-            response.println(-1);
-            response.println("Uno ho più argomenti uguali a null");
+            response.println(400);
+            response.println("errore, uno o più argomenti uguali a null");
             response.flush();
             return;
         }
 
         // Username vuoto
         if (username.isEmpty()) {
-            response.println(1);
+            response.println(401);
             response.println("errore, username vuoto");
             response.flush();
             return;
         }
         // Password vuota
         if (password.isEmpty()) {
-            response.println(2);
+            response.println(401);
             response.println("errore, password vuota");
             response.flush();
             return;
@@ -56,10 +56,10 @@ public class UserManager implements Runnable {
         // C'è un utente già collegato
         if (usernameLogin != null) {
             if (usernameLogin.equals(username)) {
-                response.println(8);
+                response.println(405);
                 response.println("c'è un utente già collegato, deve essere prima scollegato");
             } else {
-                response.println(9);
+                response.println(405);
                 response.println(username + " già collegato");
             }
 
@@ -69,7 +69,7 @@ public class UserManager implements Runnable {
 
         if (ServerMain.users.containsKey(username)) {
             if (!ServerMain.users.get(username).equals(password)) {
-                response.println(5);
+                response.println(406);
                 response.println("errore, password non corretta");
                 response.flush();
                 return;
@@ -77,11 +77,11 @@ public class UserManager implements Runnable {
 
             usernameLogin = username;
 
-            response.println(7);
+            response.println(200);
             response.println(username + " logged in");
         } else {
-            response.println(3);
-            response.println("errore, utente " + username + " non esistente");
+            response.println(404);
+            response.println("errore, utente " + username + " non esiste");
         }
 
         response.flush();
