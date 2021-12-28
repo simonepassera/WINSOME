@@ -1,6 +1,10 @@
 // @Author Simone Passera
 
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
+
 import java.io.*;
+import java.lang.reflect.Type;
 import java.net.*;
 import java.net.UnknownHostException;
 import java.rmi.*;
@@ -99,7 +103,7 @@ public class ClientMain {
                         else System.out.println("\033[1m<\033[22m disabilitato");
                         break;
                     case "register":
-                        if (command.length < 4 || command.length > 8) { System.out.println("\033[1m<\033[22m \033[1mregister\033[22m <username> <password> <tags [\033[1mmax 5\033[22m]>"); break; }
+                        if (command.length < 4 || command.length > 8) { System.out.println("\033[1m<\033[22m \033[1mregister\033[22m <username [\033[1mmax 15\033[22m]> <password> <tags [\033[1mmax 5\033[22m]>"); break; }
 
                         ArrayList<String> tags = new ArrayList<>();
                         for (int i = 3; i < command.length; i++) tags.add(command[i]);
@@ -112,6 +116,25 @@ public class ClientMain {
                         break;
                     case "logout":
                         logout();
+                        break;
+                    case "list":
+                        String cmd = "error";
+                        if (command.length >= 2) cmd = command[1];
+
+                        switch (cmd) {
+                            case "users":
+                                listUsers();
+                                break;
+                            case "followers":
+                                break;
+                            case "following":
+                                break;
+                            default:
+                                System.out.println("\033[1m<\033[22m \033[1mlist users\033[22m");
+                                System.out.println("\033[1m<\033[22m \033[1mlist followers\033[22m");
+                                System.out.println("\033[1m<\033[22m \033[1mlist following\033[22m");
+                        }
+
                         break;
                     case "exit":
                         exit();
@@ -227,6 +250,7 @@ public class ClientMain {
         System.out.println("\033[1m<\033[22m \033[1mregister\033[22m <username> <password> <tags>\033[50Ginserisce un nuovo utente, <tags> è una lista di tag separati da uno spazio, al massimo 5 tag.");
         System.out.println("\033[1m<\033[22m \033[1mlogin\033[22m <username> <password>\033[50Glogin di un utente già registrato per accedere al servizio.");
         System.out.println("\033[1m<\033[22m \033[1mlogout\033[22m \033[50Geffettua il logout dal servizio.");
+        System.out.println("\033[1m<\033[22m \033[1mlist users\033[22m \033[50Gvisualizza la lista degli utenti registrati al servizio.");
         System.out.println("\033[1m<\033[22m \033[1mhelp\033[22m \033[50Gmostra la lista dei comandi.");
         System.out.println("\033[1m<\033[22m \033[1mverbose\033[22m \033[50Gabilita la stampa dei codici di risposta dal server.");
         System.out.println("\033[1m<\033[22m \033[1mexit\033[22m \033[50Gtermina il processo.");
@@ -301,13 +325,66 @@ public class ClientMain {
         }
     }
 
+    private static void listUsers() {
+        outRequest.println("listUsers");
+        outRequest.flush();
+
+        int code = 0;
+        String message = null;
+
+        try {
+            code = Integer.parseInt(inResponse.readLine());
+            message = inResponse.readLine();
+        } catch (IOException | NumberFormatException e) {
+            System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
+            return;
+        }
+
+        if (code != 201){
+            if (verbose) System.out.println("\033[1m<\033[22m [\033[1m" + code + "\033[22m] " + message);
+            else System.out.println("\033[1m<\033[22m " + message);
+        } else {
+            Gson gson = new Gson();
+
+            HashMap<String, ArrayList<String>> listUsersTags = null;
+            Type hashMap = new TypeToken<HashMap<String, ArrayList<String>>>(){}.getType();
+
+            try {
+                listUsersTags = gson.fromJson(inResponse.readLine(), hashMap);
+            } catch (IOException e) {
+                System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
+                return;
+            }
+
+            if (listUsersTags.isEmpty()) {
+                System.out.println("\033[1m<\033[22m non ci sono utenti con almeno un tag in comune!");
+            } else {
+                System.out.println("\033[1m<\033[22m         Utente\033[24G|       Tag");
+                System.out.println("\033[1m<\033[22m ------------------------------------------------------");
+
+                ArrayList<String> listTags;
+
+                for (String name : listUsersTags.keySet()) {
+                    System.out.print("\033[1m<\033[22m    " + name);
+                    System.out.print("\033[24G|   ");
+
+                    listTags = listUsersTags.get(name);
+
+                    for (int i = 0; i < listTags.size(); i++) {
+                        if (i == (listTags.size() - 1)) System.out.println(listTags.get(i));
+                        else System.out.print(listTags.get(i) + ", ");
+                    }
+                }
+            }
+        }
+    }
+
     private static int printResponse() throws NumberFormatException, IOException {
         int code;
         String message;
 
         code = Integer.parseInt(inResponse.readLine());
         message = inResponse.readLine();
-
 
         if (verbose) System.out.println("\033[1m<\033[22m [\033[1m" + code + "\033[22m] " + message);
         else System.out.println("\033[1m<\033[22m " + message);

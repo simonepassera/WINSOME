@@ -1,7 +1,11 @@
 // @Author Simone Passera
 
+import com.google.gson.Gson;
+
 import java.io.*;
 import java.net.Socket;
+import java.util.ArrayList;
+import java.util.HashMap;
 
 public class UserManager implements Runnable {
     // Socket per la connessione persistente con il client
@@ -34,6 +38,9 @@ public class UserManager implements Runnable {
                         break;
                     case "logout":
                         logout(response);
+                        break;
+                    case "listUsers":
+                        listUsers(response);
                         break;
                 }
             }
@@ -119,5 +126,44 @@ public class UserManager implements Runnable {
         response.flush();
 
         usernameLogin = null;
+    }
+
+    private void listUsers(PrintWriter response) {
+        // Controllo che ci sia un utente connesso
+        if (usernameLogin == null) {
+            response.println(406);
+            response.println("errore, nessun utente connesso");
+            response.flush();
+            return;
+        }
+
+        response.println(201);
+        response.println("invio lista utenti tags");
+        response.flush();
+
+        HashMap<String, ArrayList<String>> usersTags = new HashMap<>();
+
+        ArrayList<String> userLoginTags = ServerMain.tags.get(usernameLogin);
+
+        for (String name : ServerMain.tags.keySet()) {
+            if (!name.equals(usernameLogin)) {
+                ArrayList<String> nameTags = ServerMain.tags.get(name);
+                boolean match = false;
+
+                for (String tag : userLoginTags) {
+                    if (nameTags.contains(tag)) {
+                        match = true;
+                        break;
+                    }
+                }
+
+                if (match) usersTags.put(name, nameTags);
+            }
+        }
+
+        Gson gson = new Gson();
+
+        response.println(gson.toJson(usersTags));
+        response.flush();
     }
 }

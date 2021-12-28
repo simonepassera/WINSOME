@@ -15,6 +15,8 @@ public class WinsomeRMI extends UnicastRemoteObject implements WinsomeRMIService
         if (username == null || password == null || tags == null) return new CodeReturn(400, "errore, uno o più argomenti uguali a null");
         // Username vuoto
         if (username.isEmpty()) return new CodeReturn(401, "errore, username vuoto");
+        // Username troppo lungo [max 15]
+        if (username.length() > 15) return new CodeReturn(401, "errore, username troppo lungo [max 15]");
         // Password vuota
         if (password.isEmpty()) return new CodeReturn(401, "errore, password vuota");
         // Lista di tag vuota
