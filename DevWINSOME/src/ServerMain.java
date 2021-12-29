@@ -17,9 +17,9 @@ public class ServerMain {
     // Porta del registry
     private static int REGISTRY_PORT;
     // Mappa (username, password)
-    public static ConcurrentHashMap<String, String> users;
+    private static ConcurrentHashMap<String, String> users;
     // Mappa (username, tags)
-    public static ConcurrentHashMap<String, ArrayList<String>> tags;
+    private static ConcurrentHashMap<String, ArrayList<String>> tags;
 
     public static void main(String[] args) {
         // Controllo se esiste il file di configurazione
@@ -49,7 +49,7 @@ public class ServerMain {
 
         // Creo ed esporto l'oggetto remoto
         try {
-            rmiServices = new WinsomeRMI();
+            rmiServices = new WinsomeRMI(users, tags);
         } catch (RemoteException e) {
             System.err.println("Creazione dell'oggeto remoto: " + e.getMessage());
             System.exit(1);
@@ -70,7 +70,7 @@ public class ServerMain {
             System.out.println("Server avviato ...");
 
             while (true) {
-                pool.execute(new UserManager(listenSocket.accept()));
+                pool.execute(new UserManager(listenSocket.accept(), users, tags));
             }
         } catch (IOException e) {
             System.err.println(e.getMessage());

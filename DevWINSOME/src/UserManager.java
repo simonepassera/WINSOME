@@ -6,15 +6,24 @@ import java.io.*;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class UserManager implements Runnable {
     // Socket per la connessione persistente con il client
     private final Socket user;
     // Stringa che contiene lo username se l'utente ha effettuato il login, oppure null in caso contrario
     private String usernameLogin = null;
+    // Mappa (username, password)
+    private final ConcurrentHashMap<String, String> users;
+    // Mappa (username, tags)
+    private final ConcurrentHashMap<String, ArrayList<String>> tags;
+    // Variabile di terminazione
+    private boolean exit = true;
 
-    public UserManager(Socket user) {
+    public UserManager(Socket user, ConcurrentHashMap<String, String> users, ConcurrentHashMap<String, ArrayList<String>> tags) {
         this.user = user;
+        this.users = users;
+        this.tags = tags;
     }
 
     @Override
@@ -23,14 +32,14 @@ public class UserManager implements Runnable {
              BufferedReader request = new BufferedReader(new InputStreamReader(user.getInputStream()))) {
             String command;
 
-            while (true) {
+            while (exit) {
                 command = request.readLine();
                 if (command == null) return;
 
                 switch (command) {
                     case "exit":
                         exit(response);
-                        return;
+                        break;
                     case "login":
                         String username =  request.readLine();
                         String password = request.readLine();
@@ -50,11 +59,20 @@ public class UserManager implements Runnable {
     }
 
     private void exit(PrintWriter response) {
+        // C'è un utente collegato
+        if (usernameLogin != null) {
+            response.println(405);
+            response.println("c'è un utente collegato, deve essere prima scollegato");
+            response.flush();
+            return;
+        }
+
         response.println(200);
         response.println("Arrivederci :)");
         response.flush();
 
         try { user.close(); } catch (IOException e) {}
+        exit = false;
     }
 
     private void login(String username, String password, PrintWriter response) {
@@ -64,7 +82,6 @@ public class UserManager implements Runnable {
             response.flush();
             return;
         }
-
         // Username vuoto
         if (username.isEmpty()) {
             response.println(401);
@@ -92,9 +109,9 @@ public class UserManager implements Runnable {
             response.flush();
             return;
         }
-
-        if (ServerMain.users.containsKey(username)) {
-            if (!ServerMain.users.get(username).equals(password)) {
+        // Controllo se l'utente è registrato
+        if (users.containsKey(username)) {
+            if (!users.get(username).equals(password)) {
                 response.println(407);
                 response.println("errore, password non corretta");
                 response.flush();
@@ -143,11 +160,11 @@ public class UserManager implements Runnable {
 
         HashMap<String, ArrayList<String>> usersTags = new HashMap<>();
 
-        ArrayList<String> userLoginTags = ServerMain.tags.get(usernameLogin);
+        ArrayList<String> userLoginTags = tags.get(usernameLogin);
 
-        for (String name : ServerMain.tags.keySet()) {
+        for (String name : tags.keySet()) {
             if (!name.equals(usernameLogin)) {
-                ArrayList<String> nameTags = ServerMain.tags.get(name);
+                ArrayList<String> nameTags = tags.get(name);
                 boolean match = false;
 
                 for (String tag : userLoginTags) {

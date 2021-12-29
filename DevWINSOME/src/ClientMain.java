@@ -31,6 +31,10 @@ public class ClientMain {
     private static BufferedReader inResponse = null;
     // Settata dal comando [verbose]
     private static boolean verbose = false;
+    // Lista dei followers aggiornata dal server con RMI Callback
+    private static ArrayList<String> listFollowers = null;
+    // Oggetto remoto registrato dal server tramite callback
+    private static NotifyFollowersInterface callback = null;
 
     public static void main(String[] args) {
         // Controllo se esiste il file di configurazione
@@ -112,7 +116,31 @@ public class ClientMain {
                         break;
                     case "login":
                         if (command.length < 3) { System.out.println("\033[1m<\033[22m \033[1mlogin\033[22m <username> <password>"); break; }
-                        login(command[1], command[2]);
+                        if (login(command[1], command[2]) == 0) {
+                            listFollowers = new ArrayList<>();
+                            try {
+                                callback = new NotifyFollowers(listFollowers);
+                            } catch (RemoteException e) {
+                                System.err.println("Non riesco a creare l'oggetto remoto per il servizio di callback: " + e.getMessage());
+                                System.exit(1);
+                            }
+                            // Registro il client al servizio di callback
+                            CodeReturn code = null;
+                            Gson gson = new Gson();
+                            Type CodeReturnType = new TypeToken<CodeReturn>(){}.getType();
+
+                            try {
+                                code = gson.fromJson(winsomeRMI.registerListFollowers(callback), CodeReturnType);
+                            } catch (RemoteException e) {
+                                System.err.println("Non riesco a registrarmi al servizio di callback: " + e.getMessage());
+                                System.exit(1);
+                            }
+
+                            if (code.getCode() != 200) {
+                                if (verbose) System.err.println("Errore di registrazione al servizio di callback [" + code.getCode() + "]: " + code.getMessage());
+                                System.exit(1);
+                            }
+                        }
                         break;
                     case "logout":
                         logout();
@@ -126,6 +154,7 @@ public class ClientMain {
                                 listUsers();
                                 break;
                             case "followers":
+                                listFollowers();
                                 break;
                             case "following":
                                 break;
@@ -279,10 +308,12 @@ public class ClientMain {
             return;
         }
 
-        WinsomeRMIServices.CodeReturn code = null;
+        CodeReturn code = null;
+        Gson gson = new Gson();
+        Type CodeReturnType = new TypeToken<CodeReturn>(){}.getType();
 
         try {
-            code = winsomeRMI.register(username, hexPass, tags);
+            code = gson.fromJson(winsomeRMI.register(username, hexPass, tags), CodeReturnType);
         } catch (RemoteException e) {
             System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
             return;
@@ -292,14 +323,14 @@ public class ClientMain {
         else System.out.println("\033[1m<\033[22m " + code.getMessage());
     }
 
-    private static void login(String username, String password) {
+    private static int login(String username, String password) {
         String hexPass = null;
 
         try {
             hexPass = Hash.encrypt(password);
         } catch (NoSuchAlgorithmException e) {
             System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
-            return;
+            return 1;
         }
 
         outRequest.println("login");
@@ -307,11 +338,16 @@ public class ClientMain {
         outRequest.println(hexPass);
         outRequest.flush();
 
+        int code = 0;
+
         try {
-            printResponse();
+            code = printResponse();
         } catch (IOException | NumberFormatException e) {
             System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
         }
+
+        if (code == 200) return 0;
+        else return 1;
     }
 
     private static void logout() {
@@ -373,6 +409,25 @@ public class ClientMain {
                     for (int i = 0; i < listTags.size(); i++) {
                         if (i == (listTags.size() - 1)) System.out.println(listTags.get(i));
                         else System.out.print(listTags.get(i) + ", ");
+                    }
+                }
+            }
+        }
+    }
+
+    private static void listFollowers() {
+        if (listFollowers == null) {
+            System.out.println("\033[1m<\033[22m errore, nessun utente connesso");
+        } else {
+            if (listFollowers.isEmpty()) {
+                System.out.println("\033[1m<\033[22m non ci sono utenti con almeno un tag in comune!");
+            } else {
+                System.out.println("\033[1m<\033[22m         Followers        ");
+                System.out.println("\033[1m<\033[22m -------------------------");
+
+                synchronized (listFollowers) {
+                    for (String name : listFollowers) {
+                        System.out.println("\033[1m<\033[22m    " + name);
                     }
                 }
             }
