@@ -20,6 +20,10 @@ public class ServerMain {
     private static ConcurrentHashMap<String, String> users;
     // Mappa (username, tags)
     private static ConcurrentHashMap<String, ArrayList<String>> tags;
+    // Mappa (username, stub_callback)
+    private static ConcurrentHashMap<String, NotifyFollowersInterface> stubs;
+    // Mappa (username, followers)
+    private static ConcurrentHashMap<String, ArrayList<String>> followers;
 
     public static void main(String[] args) {
         // Controllo se esiste il file di configurazione
@@ -44,12 +48,14 @@ public class ServerMain {
         // inizializzo le strutture dati
         users = new ConcurrentHashMap<>();
         tags = new ConcurrentHashMap<>();
+        stubs = new ConcurrentHashMap<>();
+        followers = new ConcurrentHashMap<>();
 
         WinsomeRMIServices rmiServices = null;
 
         // Creo ed esporto l'oggetto remoto
         try {
-            rmiServices = new WinsomeRMI(users, tags);
+            rmiServices = new WinsomeRMI(users, tags, stubs, followers);
         } catch (RemoteException e) {
             System.err.println("Creazione dell'oggeto remoto: " + e.getMessage());
             System.exit(1);
@@ -64,16 +70,16 @@ public class ServerMain {
         }
 
         // Creo il listen socket sulla porta specificata nel file di configurazione
-        try (ServerSocket listenSocket = new ServerSocket(PORT_TCP, 1)) {
+        try (ServerSocket listenSocket = new ServerSocket(PORT_TCP)) {
             ExecutorService pool = new ThreadPoolExecutor(10, Integer.MAX_VALUE, 60, TimeUnit.SECONDS, new SynchronousQueue<>());
 
             System.out.println("Server avviato ...");
 
             while (true) {
-                pool.execute(new UserManager(listenSocket.accept(), users, tags));
+                pool.execute(new UserManager(listenSocket.accept(), users, tags, stubs));
             }
         } catch (IOException e) {
-            System.err.println(e.getMessage());
+            e.printStackTrace();
             System.exit(1);
         }
     }

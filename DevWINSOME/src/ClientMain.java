@@ -31,10 +31,16 @@ public class ClientMain {
     private static BufferedReader inResponse = null;
     // Settata dal comando [verbose]
     private static boolean verbose = false;
-    // Lista dei followers aggiornata dal server con RMI Callback
+    // Lista dei followers aggiornata dal server con RMI callback
     private static ArrayList<String> listFollowers = null;
     // Oggetto remoto registrato dal server tramite callback
     private static NotifyFollowersInterface callback = null;
+    // Tipo dell'oggetto restituito dai metodi remoti
+    private static Type CodeReturnType;
+    // Oggetto gson
+    private static Gson gson;
+    // Username connesso
+    private static String usernameConnected = null;
 
     public static void main(String[] args) {
         // Controllo se esiste il file di configurazione
@@ -66,7 +72,7 @@ public class ClientMain {
             System.exit(1);
         }
 
-        // Creo una instanza dell'oggetto remoto
+        // Creo una istanza dell'oggetto remoto
         try {
             winsomeRMI = (WinsomeRMIServices) registry.lookup("WINSOME");
         } catch (RemoteException | NotBoundException e) {
@@ -93,6 +99,9 @@ public class ClientMain {
             System.out.flush();
             System.out.println("\033[1m*** WINSOME ***\033[22m");
             // Leggo i comandi
+            CodeReturnType = new TypeToken<CodeReturn>(){}.getType();
+            gson = new Gson();
+
             while (true) {
                 System.out.flush();
                 System.out.print("> ");
@@ -118,6 +127,7 @@ public class ClientMain {
                         if (command.length < 3) { System.out.println("\033[1m<\033[22m \033[1mlogin\033[22m <username> <password>"); break; }
                         if (login(command[1], command[2]) == 0) {
                             listFollowers = new ArrayList<>();
+                            // Creo l'oggetto usato dal server
                             try {
                                 callback = new NotifyFollowers(listFollowers);
                             } catch (RemoteException e) {
@@ -126,24 +136,41 @@ public class ClientMain {
                             }
                             // Registro il client al servizio di callback
                             CodeReturn code = null;
-                            Gson gson = new Gson();
-                            Type CodeReturnType = new TypeToken<CodeReturn>(){}.getType();
 
                             try {
-                                code = gson.fromJson(winsomeRMI.registerListFollowers(callback), CodeReturnType);
+                                code = gson.fromJson(winsomeRMI.registerListFollowers(usernameConnected, callback), CodeReturnType);
                             } catch (RemoteException e) {
                                 System.err.println("Non riesco a registrarmi al servizio di callback: " + e.getMessage());
                                 System.exit(1);
                             }
 
                             if (code.getCode() != 200) {
-                                if (verbose) System.err.println("Errore di registrazione al servizio di callback [" + code.getCode() + "]: " + code.getMessage());
+                                System.err.println("Errore di registrazione al servizio di callback [" + code.getCode() + "]: " + code.getMessage());
                                 System.exit(1);
                             }
                         }
+
                         break;
                     case "logout":
-                        logout();
+                        if (logout() == 0) {
+                            CodeReturn code = null;
+
+                            try {
+                                code = gson.fromJson(winsomeRMI.unregisterListFollowers(usernameConnected), CodeReturnType);
+                            } catch (RemoteException e) {
+                                System.err.println("Errore: " + e.getMessage());
+                                System.exit(1);
+                            }
+
+                            if (code.getCode() != 200) {
+                                if (verbose) System.err.println("Errore durante la disconnessione dalla callback [" + code.getCode() + "]: " + code.getMessage());
+                                System.exit(1);
+                            }
+
+                            usernameConnected = null;
+                            callback = null;
+                            listFollowers = null;
+                        }
                         break;
                     case "list":
                         String cmd = "error";
@@ -175,7 +202,7 @@ public class ClientMain {
             System.err.println("Timeout per la connessione con il server WINSOME");
             System.exit(1);
         } catch (IOException e) {
-            System.err.println(e.getMessage());
+            e.printStackTrace();
             System.exit(1);
         }
     }
@@ -280,6 +307,7 @@ public class ClientMain {
         System.out.println("\033[1m<\033[22m \033[1mlogin\033[22m <username> <password>\033[50Glogin di un utente già registrato per accedere al servizio.");
         System.out.println("\033[1m<\033[22m \033[1mlogout\033[22m \033[50Geffettua il logout dal servizio.");
         System.out.println("\033[1m<\033[22m \033[1mlist users\033[22m \033[50Gvisualizza la lista degli utenti registrati al servizio.");
+        System.out.println("\033[1m<\033[22m \033[1mlist followers\033[22m \033[50Gvisualizza la lista dei propri follower.");
         System.out.println("\033[1m<\033[22m \033[1mhelp\033[22m \033[50Gmostra la lista dei comandi.");
         System.out.println("\033[1m<\033[22m \033[1mverbose\033[22m \033[50Gabilita la stampa dei codici di risposta dal server.");
         System.out.println("\033[1m<\033[22m \033[1mexit\033[22m \033[50Gtermina il processo.");
@@ -309,8 +337,6 @@ public class ClientMain {
         }
 
         CodeReturn code = null;
-        Gson gson = new Gson();
-        Type CodeReturnType = new TypeToken<CodeReturn>(){}.getType();
 
         try {
             code = gson.fromJson(winsomeRMI.register(username, hexPass, tags), CodeReturnType);
@@ -346,19 +372,27 @@ public class ClientMain {
             System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
         }
 
-        if (code == 200) return 0;
-        else return 1;
+        if (code == 200) {
+            usernameConnected = username;
+            return 0;
+        } else return 1;
     }
 
-    private static void logout() {
+    private static int logout() {
         outRequest.println("logout");
         outRequest.flush();
 
+        int code = 0;
+
         try {
-            printResponse();
+            code = printResponse();
         } catch (IOException | NumberFormatException e) {
             System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
         }
+
+        if (code == 200) {
+            return 0;
+        } else return 1;
     }
 
     private static void listUsers() {
@@ -380,13 +414,11 @@ public class ClientMain {
             if (verbose) System.out.println("\033[1m<\033[22m [\033[1m" + code + "\033[22m] " + message);
             else System.out.println("\033[1m<\033[22m " + message);
         } else {
-            Gson gson = new Gson();
-
             HashMap<String, ArrayList<String>> listUsersTags = null;
-            Type hashMap = new TypeToken<HashMap<String, ArrayList<String>>>(){}.getType();
+            Type hashMapType = new TypeToken<HashMap<String, ArrayList<String>>>(){}.getType();
 
             try {
-                listUsersTags = gson.fromJson(inResponse.readLine(), hashMap);
+                listUsersTags = gson.fromJson(inResponse.readLine(), hashMapType);
             } catch (IOException e) {
                 System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
                 return;

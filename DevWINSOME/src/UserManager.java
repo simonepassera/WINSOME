@@ -17,13 +17,19 @@ public class UserManager implements Runnable {
     private final ConcurrentHashMap<String, String> users;
     // Mappa (username, tags)
     private final ConcurrentHashMap<String, ArrayList<String>> tags;
+    // Mappa (username, stub_callback)
+    private final ConcurrentHashMap<String, NotifyFollowersInterface> stubs;
     // Variabile di terminazione
     private boolean exit = true;
+    // Oggetto gson
+    private Gson gson;
 
-    public UserManager(Socket user, ConcurrentHashMap<String, String> users, ConcurrentHashMap<String, ArrayList<String>> tags) {
+    public UserManager(Socket user, ConcurrentHashMap<String, String> users, ConcurrentHashMap<String, ArrayList<String>> tags, ConcurrentHashMap<String, NotifyFollowersInterface> stubs) {
         this.user = user;
         this.users = users;
         this.tags = tags;
+        this.stubs = stubs;
+        gson = new Gson();
     }
 
     @Override
@@ -177,8 +183,6 @@ public class UserManager implements Runnable {
                 if (match) usersTags.put(name, nameTags);
             }
         }
-
-        Gson gson = new Gson();
 
         response.println(gson.toJson(usersTags));
         response.flush();
