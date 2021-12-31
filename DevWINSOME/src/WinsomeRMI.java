@@ -58,12 +58,15 @@ public class WinsomeRMI extends UnicastRemoteObject implements WinsomeRMIService
         // Inserisco username e password se l'utente non esiste
         if (users.putIfAbsent(username, password) == null) {
             ArrayList<String> tagsList = new ArrayList<>();
-            // Aggiungo i tag in minuscolo
+            // Preparo i tag in minuscolo
             for (String tag : listTags) {
                 tagsList.add(tag.toLowerCase());
             }
 
+            // Inserisco i tag
             tags.put(username, tagsList);
+            // Inizializzo la lista dei followers
+            followers.put(username, new ArrayList<>());
 
             // Ok
             return gson.toJson(new CodeReturn(200, "ok"), CodeReturnType);
@@ -98,10 +101,12 @@ public class WinsomeRMI extends UnicastRemoteObject implements WinsomeRMIService
         if (code.getCode() != 200) return gson.toJson(code, CodeReturnType);
 
         // Inserisco la callback nella lista degli stub
-        stubs.putIfAbsent(username, callback);
+        if (stubs.putIfAbsent(username, callback) == null)
+            // Ok
+            return gson.toJson(new CodeReturn(200, "ok"), CodeReturnType);
 
-        // Ok
-        return gson.toJson(new CodeReturn(200, "ok"), CodeReturnType);
+        // L'utente è già registrato la servizio di callback
+        return gson.toJson(new CodeReturn(501, "utente già registrato alla callback"), CodeReturnType);
     }
 
     // Annulla la registrazione alla callback

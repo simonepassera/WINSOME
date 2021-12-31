@@ -6,6 +6,7 @@ import java.net.UnknownHostException;
 import java.rmi.*;
 import java.rmi.registry.*;
 import java.util.ArrayList;
+import java.util.Vector;
 import java.util.concurrent.*;
 
 public class ServerMain {
@@ -24,6 +25,8 @@ public class ServerMain {
     private static ConcurrentHashMap<String, NotifyFollowersInterface> stubs;
     // Mappa (username, followers)
     private static ConcurrentHashMap<String, ArrayList<String>> followers;
+    // Lista degli utenti connessi
+    private static Vector<String> connectedUsers;
 
     public static void main(String[] args) {
         // Controllo se esiste il file di configurazione
@@ -50,6 +53,7 @@ public class ServerMain {
         tags = new ConcurrentHashMap<>();
         stubs = new ConcurrentHashMap<>();
         followers = new ConcurrentHashMap<>();
+        connectedUsers = new Vector<>();
 
         WinsomeRMIServices rmiServices = null;
 
@@ -76,7 +80,7 @@ public class ServerMain {
             System.out.println("Server avviato ...");
 
             while (true) {
-                pool.execute(new UserManager(listenSocket.accept(), users, tags, stubs));
+                pool.execute(new UserManager(listenSocket.accept(), users, tags, stubs, connectedUsers));
             }
         } catch (IOException e) {
             e.printStackTrace();

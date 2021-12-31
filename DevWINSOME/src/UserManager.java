@@ -6,6 +6,7 @@ import java.io.*;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Vector;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class UserManager implements Runnable {
@@ -19,16 +20,19 @@ public class UserManager implements Runnable {
     private final ConcurrentHashMap<String, ArrayList<String>> tags;
     // Mappa (username, stub_callback)
     private final ConcurrentHashMap<String, NotifyFollowersInterface> stubs;
+    // Lista degli utenti connessi
+    private final Vector<String> connectedUsers;
     // Variabile di terminazione
     private boolean exit = true;
     // Oggetto gson
     private Gson gson;
 
-    public UserManager(Socket user, ConcurrentHashMap<String, String> users, ConcurrentHashMap<String, ArrayList<String>> tags, ConcurrentHashMap<String, NotifyFollowersInterface> stubs) {
+    public UserManager(Socket user, ConcurrentHashMap<String, String> users, ConcurrentHashMap<String, ArrayList<String>> tags, ConcurrentHashMap<String, NotifyFollowersInterface> stubs, Vector<String> connectedUsers) {
         this.user = user;
         this.users = users;
         this.tags = tags;
         this.stubs = stubs;
+        this.connectedUsers = connectedUsers;
         gson = new Gson();
     }
 
@@ -40,7 +44,10 @@ public class UserManager implements Runnable {
 
             while (exit) {
                 command = request.readLine();
-                if (command == null) return;
+                if (command == null) {
+                    exitNow();
+                    return;
+                }
 
                 switch (command) {
                     case "exit":
@@ -79,6 +86,16 @@ public class UserManager implements Runnable {
 
         try { user.close(); } catch (IOException e) {}
         exit = false;
+    }
+
+    private void exitNow() {
+        // L'utente è ancora connesso
+        if (usernameLogin != null) {
+            // Rimuovo l'utente dai connessi
+            connectedUsers.remove(usernameLogin);
+            // Rimuovo la callback
+            stubs.remove(usernameLogin);
+        }
     }
 
     private void login(String username, String password, PrintWriter response) {
@@ -124,10 +141,23 @@ public class UserManager implements Runnable {
                 return;
             }
 
-            usernameLogin = username;
+            // L'utente è già connesso su un altro terminale
+            boolean absent;
 
-            response.println(200);
-            response.println(username + " logged in");
+            synchronized (connectedUsers) {
+                absent = !connectedUsers.contains(username);
+                if (absent) connectedUsers.add(username);
+            }
+
+            if (absent) {
+                usernameLogin = username;
+
+                response.println(200);
+                response.println(username + " logged in");
+            } else {
+                response.println(405);
+                response.println("utente già connesso su un altro terminale");
+            }
         } else {
             response.println(404);
             response.println("errore, utente " + username + " non esiste");
@@ -143,6 +173,8 @@ public class UserManager implements Runnable {
             response.flush();
             return;
         }
+
+        connectedUsers.remove(usernameLogin);
 
         response.println(200);
         response.println("utente " + usernameLogin + " disconnesso");
