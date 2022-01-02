@@ -24,7 +24,7 @@ public class ServerMain {
     // Mappa (username, stub_callback)
     private static ConcurrentHashMap<String, NotifyFollowersInterface> stubs;
     // Mappa (username, followers)
-    private static ConcurrentHashMap<String, ArrayList<String>> followers;
+    private static ConcurrentHashMap<String, Vector<String>> followers;
     // Lista degli utenti connessi
     private static Vector<String> connectedUsers;
 
@@ -80,7 +80,7 @@ public class ServerMain {
             System.out.println("Server avviato ...");
 
             while (true) {
-                pool.execute(new UserManager(listenSocket.accept(), users, tags, stubs, connectedUsers));
+                pool.execute(new UserManager(listenSocket.accept(), users, tags, stubs, followers, connectedUsers));
             }
         } catch (IOException e) {
             e.printStackTrace();

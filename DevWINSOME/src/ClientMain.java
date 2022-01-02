@@ -32,7 +32,7 @@ public class ClientMain {
     // Settata dal comando [verbose]
     private static boolean verbose = false;
     // Lista dei followers aggiornata dal server con RMI callback
-    private static ArrayList<String> listFollowers = null;
+    private static Vector<String> listFollowers = null;
     // Oggetto remoto registrato dal server tramite callback
     private static NotifyFollowersInterface callback = null;
     // Tipo dell'oggetto restituito dai metodi remoti
@@ -126,7 +126,7 @@ public class ClientMain {
                     case "login":
                         if (command.length < 3) { System.out.println("\033[1m<\033[22m \033[1mlogin\033[22m <username> <password>"); break; }
                         if (login(command[1], command[2]) == 0) {
-                            listFollowers = new ArrayList<>();
+                            listFollowers = new Vector<>();
                             // Creo l'oggetto usato dal server
                             try {
                                 callback = new NotifyFollowers(listFollowers);
@@ -191,6 +191,10 @@ public class ClientMain {
                                 System.out.println("\033[1m<\033[22m \033[1mlist following\033[22m");
                         }
 
+                        break;
+                    case "follow":
+                        if (command.length < 2) { System.out.println("\033[1m<\033[22m \033[1mfollow\033[22m <username>"); break; }
+                        followUser(command[1]);
                         break;
                     case "exit":
                         exit();
@@ -308,6 +312,7 @@ public class ClientMain {
         System.out.println("\033[1m<\033[22m \033[1mlogout\033[22m \033[50Geffettua il logout dal servizio.");
         System.out.println("\033[1m<\033[22m \033[1mlist users\033[22m \033[50Gvisualizza la lista degli utenti registrati al servizio.");
         System.out.println("\033[1m<\033[22m \033[1mlist followers\033[22m \033[50Gvisualizza la lista dei propri follower.");
+        System.out.println("\033[1m<\033[22m \033[1mfollow\033[22m <username>\033[50Gpermette di seguire un utente.");
         System.out.println("\033[1m<\033[22m \033[1mhelp\033[22m \033[50Gmostra la lista dei comandi.");
         System.out.println("\033[1m<\033[22m \033[1mverbose\033[22m \033[50Gabilita la stampa dei codici di risposta dal server.");
         System.out.println("\033[1m<\033[22m \033[1mexit\033[22m \033[50Gtermina il processo.");
@@ -452,7 +457,7 @@ public class ClientMain {
             System.out.println("\033[1m<\033[22m errore, nessun utente connesso");
         } else {
             if (listFollowers.isEmpty()) {
-                System.out.println("\033[1m<\033[22m non ci sono utenti con almeno un tag in comune!");
+                System.out.println("\033[1m<\033[22m non hai nessun follower");
             } else {
                 System.out.println("\033[1m<\033[22m         Followers        ");
                 System.out.println("\033[1m<\033[22m -------------------------");
@@ -463,6 +468,18 @@ public class ClientMain {
                     }
                 }
             }
+        }
+    }
+
+    private static void followUser(String username) {
+        outRequest.println("follow");
+        outRequest.println(username);
+        outRequest.flush();
+
+        try {
+            printResponse();
+        } catch (IOException | NumberFormatException e) {
+            System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
         }
     }
 

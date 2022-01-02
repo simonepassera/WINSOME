@@ -6,17 +6,17 @@ import com.google.gson.reflect.TypeToken;
 import java.lang.reflect.Type;
 import java.rmi.RemoteException;
 import java.rmi.server.UnicastRemoteObject;
-import java.util.ArrayList;
+import java.util.Vector;
 
 public class NotifyFollowers extends UnicastRemoteObject implements NotifyFollowersInterface {
     // Lista dei followers dell'utente connesso
-    private ArrayList<String> listFollowers;
+    private Vector<String> listFollowers;
     // Tipo dell'oggetto restituito
     Type CodeReturnType;
     // Oggetto gson
     Gson gson;
 
-    public NotifyFollowers(ArrayList<String> listFollowers) throws RemoteException {
+    public NotifyFollowers(Vector<String> listFollowers) throws RemoteException {
         super();
         this.listFollowers = listFollowers;
         CodeReturnType = new TypeToken<CodeReturn>(){}.getType();
@@ -32,11 +32,8 @@ public class NotifyFollowers extends UnicastRemoteObject implements NotifyFollow
         // listUsers vuoto
         if (listUsers.isEmpty()) return gson.toJson(new CodeReturn(401, "errore, listUsers vuoto"), CodeReturnType);
 
-        Type arrayListType = new TypeToken<ArrayList<String>>(){}.getType();
-
-        synchronized (listFollowers) {
-            listFollowers.addAll(gson.fromJson(listUsers, arrayListType));
-        }
+        Type vectorType = new TypeToken<Vector<String>>(){}.getType();
+        listFollowers.addAll(gson.fromJson(listUsers, vectorType));
 
         return gson.toJson(new CodeReturn(200, "ok"), CodeReturnType);
     }
@@ -62,9 +59,7 @@ public class NotifyFollowers extends UnicastRemoteObject implements NotifyFollow
         // Username vuoto
         if (username.isEmpty()) return gson.toJson(new CodeReturn(401, "errore, username vuoto"), CodeReturnType);
 
-        synchronized (listFollowers) {
-            listFollowers.remove(listFollowers);
-        }
+        listFollowers.remove(username);
 
         return gson.toJson(new CodeReturn(200, "username aggiunto"), CodeReturnType);
     }

@@ -17,13 +17,13 @@ public class WinsomeRMI extends UnicastRemoteObject implements WinsomeRMIService
     // Mappa (username, stub_callback)
     private final ConcurrentHashMap<String, NotifyFollowersInterface> stubs;
     // Mappa (username, followers)
-    private final ConcurrentHashMap<String, ArrayList<String>> followers;
+    private final ConcurrentHashMap<String, Vector<String>> followers;
     // Tipo dell'oggetto restituito
     Type CodeReturnType;
     // Oggetto gson
     Gson gson;
 
-    public WinsomeRMI(ConcurrentHashMap<String, String> users, ConcurrentHashMap<String, ArrayList<String>> tags, ConcurrentHashMap<String, NotifyFollowersInterface> stubs, ConcurrentHashMap<String, ArrayList<String>> followers) throws RemoteException {
+    public WinsomeRMI(ConcurrentHashMap<String, String> users, ConcurrentHashMap<String, ArrayList<String>> tags, ConcurrentHashMap<String, NotifyFollowersInterface> stubs, ConcurrentHashMap<String, Vector<String>> followers) throws RemoteException {
         super();
 
         this.users = users;
@@ -34,7 +34,7 @@ public class WinsomeRMI extends UnicastRemoteObject implements WinsomeRMIService
         gson = new Gson();
     }
 
-    public String register(String username, String password, List<String> listTags) throws RemoteException {
+    public String register(String username, String password, ArrayList<String> listTags) throws RemoteException {
         // Tipo dell'oggetto restituito
         Type CodeReturnType = new TypeToken<CodeReturn>(){}.getType();
         // Argomenti null
@@ -66,7 +66,7 @@ public class WinsomeRMI extends UnicastRemoteObject implements WinsomeRMIService
             // Inserisco i tag
             tags.put(username, tagsList);
             // Inizializzo la lista dei followers
-            followers.put(username, new ArrayList<>());
+            followers.put(username, new Vector<>());
 
             // Ok
             return gson.toJson(new CodeReturn(200, "ok"), CodeReturnType);
@@ -83,16 +83,16 @@ public class WinsomeRMI extends UnicastRemoteObject implements WinsomeRMIService
         if (username.isEmpty()) return gson.toJson(new CodeReturn(401, "errore, username vuoto"), CodeReturnType);
 
         // Recupero la lista dei followers di username
-        ArrayList<String> listFollowers = followers.get(username);
+        Vector<String> listFollowers = followers.get(username);
         if (listFollowers == null)  return gson.toJson(new CodeReturn(500, "errore, lista dei followers non esiste"), CodeReturnType);
 
         // Tipo della lista dei followers
-        Type arrayListType = new TypeToken<ArrayList<String>>(){}.getType();
+        Type vectorType = new TypeToken<Vector<String>>(){}.getType();
 
         String listFollowersJson;
 
         synchronized (listFollowers) {
-            listFollowersJson = gson.toJson(listFollowers, arrayListType);
+            listFollowersJson = gson.toJson(listFollowers, vectorType);
         }
 
         // Inizializzo la lista del client

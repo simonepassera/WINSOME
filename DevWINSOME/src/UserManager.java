@@ -1,9 +1,12 @@
 // @Author Simone Passera
 
 import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 
 import java.io.*;
+import java.lang.reflect.Type;
 import java.net.Socket;
+import java.rmi.RemoteException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Vector;
@@ -20,27 +23,33 @@ public class UserManager implements Runnable {
     private final ConcurrentHashMap<String, ArrayList<String>> tags;
     // Mappa (username, stub_callback)
     private final ConcurrentHashMap<String, NotifyFollowersInterface> stubs;
+    // Mappa (username, followers)
+    private final ConcurrentHashMap<String, Vector<String>> followers;
     // Lista degli utenti connessi
     private final Vector<String> connectedUsers;
     // Variabile di terminazione
     private boolean exit = true;
     // Oggetto gson
     private Gson gson;
+    // Tipo dell'oggetto restituito
+    Type CodeReturnType;
 
-    public UserManager(Socket user, ConcurrentHashMap<String, String> users, ConcurrentHashMap<String, ArrayList<String>> tags, ConcurrentHashMap<String, NotifyFollowersInterface> stubs, Vector<String> connectedUsers) {
+    public UserManager(Socket user, ConcurrentHashMap<String, String> users, ConcurrentHashMap<String, ArrayList<String>> tags, ConcurrentHashMap<String, NotifyFollowersInterface> stubs, ConcurrentHashMap<String, Vector<String>> followers, Vector<String> connectedUsers) {
         this.user = user;
         this.users = users;
         this.tags = tags;
         this.stubs = stubs;
+        this.followers = followers;
         this.connectedUsers = connectedUsers;
         gson = new Gson();
+        CodeReturnType = new TypeToken<CodeReturn>(){}.getType();
     }
 
     @Override
     public void run() {
         try (PrintWriter response = new PrintWriter(user.getOutputStream());
              BufferedReader request = new BufferedReader(new InputStreamReader(user.getInputStream()))) {
-            String command;
+            String command, username, password;
 
             while (exit) {
                 command = request.readLine();
@@ -54,8 +63,8 @@ public class UserManager implements Runnable {
                         exit(response);
                         break;
                     case "login":
-                        String username =  request.readLine();
-                        String password = request.readLine();
+                        username =  request.readLine();
+                        password = request.readLine();
                         login(username, password, response);
                         break;
                     case "logout":
@@ -63,6 +72,10 @@ public class UserManager implements Runnable {
                         break;
                     case "listUsers":
                         listUsers(response);
+                        break;
+                    case "follow":
+                        username = request.readLine();
+                        followUser(username, response);
                         break;
                 }
             }
@@ -217,6 +230,89 @@ public class UserManager implements Runnable {
         }
 
         response.println(gson.toJson(usersTags));
+        response.flush();
+    }
+
+    private void followUser(String username, PrintWriter response) {
+        // Argomenti null
+        if (username == null) {
+            response.println(400);
+            response.println("errore, username uguale a null");
+            response.flush();
+            return;
+        }
+        // Username vuoto
+        if (username.isEmpty()) {
+            response.println(401);
+            response.println("errore, username vuoto");
+            response.flush();
+            return;
+        }
+        // Controllo che ci sia un utente connesso
+        if (usernameLogin == null) {
+            response.println(406);
+            response.println("errore, nessun utente connesso");
+            response.flush();
+            return;
+        }
+        // Controllo se l'utente è registrato
+        if (!users.containsKey(username)) {
+            response.println(404);
+            response.println("errore, utente " + username + " non esiste");
+            response.flush();
+            return;
+        }
+        // Controllo se posso seguire l'utente (almeno un tag in comune)
+        ArrayList<String> userLoginTags = tags.get(usernameLogin);
+        ArrayList<String> usernameTags = tags.get(username);
+
+        boolean match = false;
+
+        for (String tag : userLoginTags) {
+            if (usernameTags.contains(tag)) {
+                match = true;
+                break;
+            }
+        }
+
+        if (!match) {
+            response.println(409);
+            response.println("l'utente " + username + " non può essere seguito (nessun tag in comune)");
+            response.flush();
+            return;
+        }
+
+        // Controllo se l'utente segue già username
+        Vector<String> listFollowers = followers.get(username);
+
+        if (listFollowers.contains(usernameLogin)) {
+            response.println(410);
+            response.println("Segui già " + username);
+            response.flush();
+            return;
+        }
+
+        // Aggiungo all'utente username il follower utente connesso
+        listFollowers.add(usernameLogin);
+
+        // Notifico a username un nuovo follower con la callback se connesso
+        NotifyFollowersInterface notifyUsername = stubs.get(username);
+        CodeReturn code = null;
+
+        try {
+            if (notifyUsername != null) code = gson.fromJson(notifyUsername.addFollower(usernameLogin), CodeReturnType);
+        } catch (RemoteException ignore) {
+            response.println(200);
+            response.println("Ora segui " + username + ", la notifica non è andata a buon fine");
+            response.flush();
+            return;
+        }
+
+        response.println(200);
+
+        if (code != null && code.getCode() != 200) response.println("Ora segui " + username + ", la notifica non è andata a buon fine");
+        else response.println("Ora segui " + username);
+
         response.flush();
     }
 }
