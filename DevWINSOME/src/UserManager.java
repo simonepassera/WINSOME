@@ -77,6 +77,10 @@ public class UserManager implements Runnable {
                         username = request.readLine();
                         followUser(username, response);
                         break;
+                    case "unfollow":
+                        username = request.readLine();
+                        unfollowUser(username, response);
+                        break;
                 }
             }
         } catch (IOException e) {
@@ -97,7 +101,7 @@ public class UserManager implements Runnable {
         response.println("Arrivederci :)");
         response.flush();
 
-        try { user.close(); } catch (IOException e) {}
+        try { user.close(); } catch (IOException ignore) {}
         exit = false;
     }
 
@@ -287,7 +291,7 @@ public class UserManager implements Runnable {
 
         if (listFollowers.contains(usernameLogin)) {
             response.println(410);
-            response.println("Segui già " + username);
+            response.println("errore, segui già " + username);
             response.flush();
             return;
         }
@@ -312,6 +316,70 @@ public class UserManager implements Runnable {
 
         if (code != null && code.getCode() != 200) response.println("Ora segui " + username + ", la notifica non è andata a buon fine");
         else response.println("Ora segui " + username);
+
+        response.flush();
+    }
+
+    private void unfollowUser(String username, PrintWriter response) {
+        // Argomenti null
+        if (username == null) {
+            response.println(400);
+            response.println("errore, username uguale a null");
+            response.flush();
+            return;
+        }
+        // Username vuoto
+        if (username.isEmpty()) {
+            response.println(401);
+            response.println("errore, username vuoto");
+            response.flush();
+            return;
+        }
+        // Controllo che ci sia un utente connesso
+        if (usernameLogin == null) {
+            response.println(406);
+            response.println("errore, nessun utente connesso");
+            response.flush();
+            return;
+        }
+        // Controllo se l'utente è registrato
+        if (!users.containsKey(username)) {
+            response.println(404);
+            response.println("errore, utente " + username + " non esiste");
+            response.flush();
+            return;
+        }
+
+        // Controllo se l'utente non segue username
+        Vector<String> listFollowers = followers.get(username);
+
+        if (!listFollowers.contains(usernameLogin)) {
+            response.println(411);
+            response.println("errore, non segui " + username);
+            response.flush();
+            return;
+        }
+
+        // Rimuovo all'utente username il follower utente connesso
+        listFollowers.remove(usernameLogin);
+
+        // Notifico a username di rimuovere il follower con la callback se connesso
+        NotifyFollowersInterface notifyUsername = stubs.get(username);
+        CodeReturn code = null;
+
+        try {
+            if (notifyUsername != null) code = gson.fromJson(notifyUsername.removeFollower(usernameLogin), CodeReturnType);
+        } catch (RemoteException ignore) {
+            response.println(200);
+            response.println("Ora non segui più " + username + ", la notifica non è andata a buon fine");
+            response.flush();
+            return;
+        }
+
+        response.println(200);
+
+        if (code != null && code.getCode() != 200) response.println("Ora non segui più " + username + ", la notifica non è andata a buon fine");
+        else response.println("Ora non segui più " + username);
 
         response.flush();
     }

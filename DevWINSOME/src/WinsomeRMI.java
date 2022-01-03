@@ -50,19 +50,20 @@ public class WinsomeRMI extends UnicastRemoteObject implements WinsomeRMIService
         // lista di tag troppo grande [max 5]
         if (listTags.size() > 5) return gson.toJson(new CodeReturn(402, "errore, lista di tag troppo grande [max 5]"), CodeReturnType);
 
+        // Lista di tag che inserisco nel server
+        ArrayList<String> tagsList = new ArrayList<>();
+
         for (String tag : listTags) {
-            // lista di tag contiene valori vuoti
+            // Lista di tag contiene valori vuoti
             if (tag.isEmpty()) return gson.toJson(new CodeReturn(401, "errore, lista di tag contiene valori vuoti"), CodeReturnType);
+            // Controllo se ci sono duplicati
+            if (tag.contains(tag.toLowerCase())) return gson.toJson(new CodeReturn(412, "errore, lista dei tag contiene duplicati"), CodeReturnType);
+
+            tagsList.add(tag.toLowerCase());
         }
 
         // Inserisco username e password se l'utente non esiste
         if (users.putIfAbsent(username, password) == null) {
-            ArrayList<String> tagsList = new ArrayList<>();
-            // Preparo i tag in minuscolo
-            for (String tag : listTags) {
-                tagsList.add(tag.toLowerCase());
-            }
-
             // Inserisco i tag
             tags.put(username, tagsList);
             // Inizializzo la lista dei followers

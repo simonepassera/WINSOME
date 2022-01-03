@@ -196,6 +196,10 @@ public class ClientMain {
                         if (command.length < 2) { System.out.println("\033[1m<\033[22m \033[1mfollow\033[22m <username>"); break; }
                         followUser(command[1]);
                         break;
+                    case "unfollow":
+                        if (command.length < 2) { System.out.println("\033[1m<\033[22m \033[1munfollow\033[22m <username>"); break; }
+                        unfollowUser(command[1]);
+                        break;
                     case "exit":
                         exit();
                         break;
@@ -313,6 +317,7 @@ public class ClientMain {
         System.out.println("\033[1m<\033[22m \033[1mlist users\033[22m \033[50Gvisualizza la lista degli utenti registrati al servizio.");
         System.out.println("\033[1m<\033[22m \033[1mlist followers\033[22m \033[50Gvisualizza la lista dei propri follower.");
         System.out.println("\033[1m<\033[22m \033[1mfollow\033[22m <username>\033[50Gpermette di seguire un utente.");
+        System.out.println("\033[1m<\033[22m \033[1munfollow\033[22m <username>\033[50Gpermette di non seguire più un utente.");
         System.out.println("\033[1m<\033[22m \033[1mhelp\033[22m \033[50Gmostra la lista dei comandi.");
         System.out.println("\033[1m<\033[22m \033[1mverbose\033[22m \033[50Gabilita la stampa dei codici di risposta dal server.");
         System.out.println("\033[1m<\033[22m \033[1mexit\033[22m \033[50Gtermina il processo.");
@@ -473,6 +478,18 @@ public class ClientMain {
 
     private static void followUser(String username) {
         outRequest.println("follow");
+        outRequest.println(username);
+        outRequest.flush();
+
+        try {
+            printResponse();
+        } catch (IOException | NumberFormatException e) {
+            System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
+        }
+    }
+
+    private static void unfollowUser(String username) {
+        outRequest.println("unfollow");
         outRequest.println(username);
         outRequest.flush();
 
