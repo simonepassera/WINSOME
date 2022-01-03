@@ -18,18 +18,21 @@ public class WinsomeRMI extends UnicastRemoteObject implements WinsomeRMIService
     private final ConcurrentHashMap<String, NotifyFollowersInterface> stubs;
     // Mappa (username, followers)
     private final ConcurrentHashMap<String, Vector<String>> followers;
+    // Mappa (username, following)
+    private final ConcurrentHashMap<String, Vector<String>> followings;
     // Tipo dell'oggetto restituito
     Type CodeReturnType;
     // Oggetto gson
     Gson gson;
 
-    public WinsomeRMI(ConcurrentHashMap<String, String> users, ConcurrentHashMap<String, ArrayList<String>> tags, ConcurrentHashMap<String, NotifyFollowersInterface> stubs, ConcurrentHashMap<String, Vector<String>> followers) throws RemoteException {
+    public WinsomeRMI(ConcurrentHashMap<String, String> users, ConcurrentHashMap<String, ArrayList<String>> tags, ConcurrentHashMap<String, NotifyFollowersInterface> stubs, ConcurrentHashMap<String, Vector<String>> followers, ConcurrentHashMap<String, Vector<String>> followings) throws RemoteException {
         super();
 
         this.users = users;
         this.tags = tags;
         this.stubs = stubs;
         this.followers = followers;
+        this.followings = followings;
         CodeReturnType = new TypeToken<CodeReturn>(){}.getType();
         gson = new Gson();
     }
@@ -57,7 +60,7 @@ public class WinsomeRMI extends UnicastRemoteObject implements WinsomeRMIService
             // Lista di tag contiene valori vuoti
             if (tag.isEmpty()) return gson.toJson(new CodeReturn(401, "errore, lista di tag contiene valori vuoti"), CodeReturnType);
             // Controllo se ci sono duplicati
-            if (tag.contains(tag.toLowerCase())) return gson.toJson(new CodeReturn(412, "errore, lista dei tag contiene duplicati"), CodeReturnType);
+            if (tagsList.contains(tag.toLowerCase())) return gson.toJson(new CodeReturn(412, "errore, lista dei tag contiene duplicati"), CodeReturnType);
 
             tagsList.add(tag.toLowerCase());
         }
@@ -68,6 +71,8 @@ public class WinsomeRMI extends UnicastRemoteObject implements WinsomeRMIService
             tags.put(username, tagsList);
             // Inizializzo la lista dei followers
             followers.put(username, new Vector<>());
+            // Inizializzo la lista dei following
+            followings.put(username, new Vector<>());
 
             // Ok
             return gson.toJson(new CodeReturn(200, "ok"), CodeReturnType);

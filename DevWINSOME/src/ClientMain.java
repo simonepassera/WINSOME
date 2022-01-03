@@ -184,6 +184,7 @@ public class ClientMain {
                                 listFollowers();
                                 break;
                             case "following":
+                                listFollowing();
                                 break;
                             default:
                                 System.out.println("\033[1m<\033[22m \033[1mlist users\033[22m");
@@ -316,6 +317,7 @@ public class ClientMain {
         System.out.println("\033[1m<\033[22m \033[1mlogout\033[22m \033[50Geffettua il logout dal servizio.");
         System.out.println("\033[1m<\033[22m \033[1mlist users\033[22m \033[50Gvisualizza la lista degli utenti registrati al servizio.");
         System.out.println("\033[1m<\033[22m \033[1mlist followers\033[22m \033[50Gvisualizza la lista dei propri follower.");
+        System.out.println("\033[1m<\033[22m \033[1mlist following\033[22m \033[50Gvisualizza la lista degli utenti che segui.");
         System.out.println("\033[1m<\033[22m \033[1mfollow\033[22m <username>\033[50Gpermette di seguire un utente.");
         System.out.println("\033[1m<\033[22m \033[1munfollow\033[22m <username>\033[50Gpermette di non seguire più un utente.");
         System.out.println("\033[1m<\033[22m \033[1mhelp\033[22m \033[50Gmostra la lista dei comandi.");
@@ -471,6 +473,48 @@ public class ClientMain {
                     for (String name : listFollowers) {
                         System.out.println("\033[1m<\033[22m    " + name);
                     }
+                }
+            }
+        }
+    }
+
+    private static void listFollowing() {
+        outRequest.println("listFollowing");
+        outRequest.flush();
+
+        int code = 0;
+        String message = null;
+
+        try {
+            code = Integer.parseInt(inResponse.readLine());
+            message = inResponse.readLine();
+        } catch (IOException | NumberFormatException e) {
+            System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
+            return;
+        }
+
+        if (code != 201){
+            if (verbose) System.out.println("\033[1m<\033[22m [\033[1m" + code + "\033[22m] " + message);
+            else System.out.println("\033[1m<\033[22m " + message);
+        } else {
+            ArrayList<String> listUsers = null;
+            Type arrayListType = new TypeToken<ArrayList<String>>(){}.getType();
+
+            try {
+                listUsers = gson.fromJson(inResponse.readLine(), arrayListType);
+            } catch (IOException e) {
+                System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
+                return;
+            }
+
+            if (listUsers.isEmpty()) {
+                System.out.println("\033[1m<\033[22m non segui nessun utente");
+            } else {
+                System.out.println("\033[1m<\033[22m         Utente");
+                System.out.println("\033[1m<\033[22m ----------------------");
+
+                for (String name : listUsers) {
+                    System.out.println("\033[1m<\033[22m    " + name);
                 }
             }
         }

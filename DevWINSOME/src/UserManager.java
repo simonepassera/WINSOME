@@ -25,6 +25,8 @@ public class UserManager implements Runnable {
     private final ConcurrentHashMap<String, NotifyFollowersInterface> stubs;
     // Mappa (username, followers)
     private final ConcurrentHashMap<String, Vector<String>> followers;
+    // Mappa (username, following)
+    private final ConcurrentHashMap<String, Vector<String>> followings;
     // Lista degli utenti connessi
     private final Vector<String> connectedUsers;
     // Variabile di terminazione
@@ -34,12 +36,13 @@ public class UserManager implements Runnable {
     // Tipo dell'oggetto restituito
     Type CodeReturnType;
 
-    public UserManager(Socket user, ConcurrentHashMap<String, String> users, ConcurrentHashMap<String, ArrayList<String>> tags, ConcurrentHashMap<String, NotifyFollowersInterface> stubs, ConcurrentHashMap<String, Vector<String>> followers, Vector<String> connectedUsers) {
+    public UserManager(Socket user, ConcurrentHashMap<String, String> users, ConcurrentHashMap<String, ArrayList<String>> tags, ConcurrentHashMap<String, NotifyFollowersInterface> stubs, ConcurrentHashMap<String, Vector<String>> followers, ConcurrentHashMap<String, Vector<String>> followings, Vector<String> connectedUsers) {
         this.user = user;
         this.users = users;
         this.tags = tags;
         this.stubs = stubs;
         this.followers = followers;
+        this.followings = followings;
         this.connectedUsers = connectedUsers;
         gson = new Gson();
         CodeReturnType = new TypeToken<CodeReturn>(){}.getType();
@@ -72,6 +75,9 @@ public class UserManager implements Runnable {
                         break;
                     case "listUsers":
                         listUsers(response);
+                        break;
+                    case "listFollowing":
+                        listFollowing(response);
                         break;
                     case "follow":
                         username = request.readLine();
@@ -233,7 +239,30 @@ public class UserManager implements Runnable {
             }
         }
 
-        response.println(gson.toJson(usersTags));
+        Type hashMapType = new TypeToken<HashMap<String, ArrayList<String>>>(){}.getType();
+        response.println(gson.toJson(usersTags, hashMapType));
+        response.flush();
+    }
+
+    private void listFollowing(PrintWriter response) {
+        // Controllo che ci sia un utente connesso
+        if (usernameLogin == null) {
+            response.println(406);
+            response.println("errore, nessun utente connesso");
+            response.flush();
+            return;
+        }
+
+        response.println(201);
+        response.println("invio lista utenti");
+        response.flush();
+
+        Vector<String> listUsers = followings.get(usernameLogin);
+
+        synchronized (listUsers) {
+            response.println(gson.toJson(listUsers));
+        }
+
         response.flush();
     }
 
@@ -287,17 +316,25 @@ public class UserManager implements Runnable {
         }
 
         // Controllo se l'utente segue già username
-        Vector<String> listFollowers = followers.get(username);
+        Vector<String> listFollowing = followings.get(usernameLogin);
 
-        if (listFollowers.contains(usernameLogin)) {
+        if (listFollowing.contains(username)) {
             response.println(410);
             response.println("errore, segui già " + username);
             response.flush();
             return;
         }
 
-        // Aggiungo all'utente username il follower utente connesso
-        listFollowers.add(usernameLogin);
+        Vector<String> listFollowers = followers.get(username);
+
+        synchronized (listFollowing) {
+            synchronized (listFollowers) {
+                // Aggiungo username alla lista following dell'utente connesso
+                listFollowing.add(username);
+                // Aggiungo all'utente username il follower utente connesso
+                listFollowers.add(usernameLogin);
+            }
+        }
 
         // Notifico a username un nuovo follower con la callback se connesso
         NotifyFollowersInterface notifyUsername = stubs.get(username);
@@ -351,17 +388,25 @@ public class UserManager implements Runnable {
         }
 
         // Controllo se l'utente non segue username
-        Vector<String> listFollowers = followers.get(username);
+        Vector<String> listFollowing = followings.get(usernameLogin);
 
-        if (!listFollowers.contains(usernameLogin)) {
+        if (!listFollowing.contains(username)) {
             response.println(411);
             response.println("errore, non segui " + username);
             response.flush();
             return;
         }
 
-        // Rimuovo all'utente username il follower utente connesso
-        listFollowers.remove(usernameLogin);
+        Vector<String> listFollowers = followers.get(username);
+
+        synchronized (listFollowing) {
+            synchronized (listFollowers) {
+                // Rimuovo username dalla lista following dell'utente connesso
+                listFollowing.remove(username);
+                // Rimuovo all'utente username il follower utente connesso
+                listFollowers.remove(usernameLogin);
+            }
+        }
 
         // Notifico a username di rimuovere il follower con la callback se connesso
         NotifyFollowersInterface notifyUsername = stubs.get(username);

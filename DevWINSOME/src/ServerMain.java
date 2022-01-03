@@ -25,6 +25,8 @@ public class ServerMain {
     private static ConcurrentHashMap<String, NotifyFollowersInterface> stubs;
     // Mappa (username, followers)
     private static ConcurrentHashMap<String, Vector<String>> followers;
+    // Mappa (username, following)
+    private static ConcurrentHashMap<String, Vector<String>> followings;
     // Lista degli utenti connessi
     private static Vector<String> connectedUsers;
 
@@ -53,13 +55,14 @@ public class ServerMain {
         tags = new ConcurrentHashMap<>();
         stubs = new ConcurrentHashMap<>();
         followers = new ConcurrentHashMap<>();
+        followings = new ConcurrentHashMap<>();
         connectedUsers = new Vector<>();
 
         WinsomeRMIServices rmiServices = null;
 
         // Creo ed esporto l'oggetto remoto
         try {
-            rmiServices = new WinsomeRMI(users, tags, stubs, followers);
+            rmiServices = new WinsomeRMI(users, tags, stubs, followers, followings);
         } catch (RemoteException e) {
             System.err.println("Creazione dell'oggeto remoto: " + e.getMessage());
             System.exit(1);
@@ -80,7 +83,7 @@ public class ServerMain {
             System.out.println("Server avviato ...");
 
             while (true) {
-                pool.execute(new UserManager(listenSocket.accept(), users, tags, stubs, followers, connectedUsers));
+                pool.execute(new UserManager(listenSocket.accept(), users, tags, stubs, followers, followings, connectedUsers));
             }
         } catch (IOException e) {
             e.printStackTrace();
