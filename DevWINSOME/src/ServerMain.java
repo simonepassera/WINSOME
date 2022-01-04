@@ -8,6 +8,7 @@ import java.rmi.registry.*;
 import java.util.ArrayList;
 import java.util.Vector;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class ServerMain {
     // Numero di porta del server WINSOME
@@ -27,8 +28,13 @@ public class ServerMain {
     private static ConcurrentHashMap<String, Vector<String>> followers;
     // Mappa (username, following)
     private static ConcurrentHashMap<String, Vector<String>> followings;
+    // Mappa (username, blog)
+    private static ConcurrentHashMap<String, Vector<Post>> blogs;
     // Lista degli utenti connessi
     private static Vector<String> connectedUsers;
+    // Generatore id per un post
+    private static AtomicInteger idGenerator;
+
 
     public static void main(String[] args) {
         // Controllo se esiste il file di configurazione
@@ -56,13 +62,15 @@ public class ServerMain {
         stubs = new ConcurrentHashMap<>();
         followers = new ConcurrentHashMap<>();
         followings = new ConcurrentHashMap<>();
+        blogs = new ConcurrentHashMap<>();
         connectedUsers = new Vector<>();
+        idGenerator = new AtomicInteger(9);
 
         WinsomeRMIServices rmiServices = null;
 
         // Creo ed esporto l'oggetto remoto
         try {
-            rmiServices = new WinsomeRMI(users, tags, stubs, followers, followings);
+            rmiServices = new WinsomeRMI(users, tags, stubs, followers, followings, blogs);
         } catch (RemoteException e) {
             System.err.println("Creazione dell'oggeto remoto: " + e.getMessage());
             System.exit(1);
@@ -83,7 +91,7 @@ public class ServerMain {
             System.out.println("Server avviato ...");
 
             while (true) {
-                pool.execute(new UserManager(listenSocket.accept(), users, tags, stubs, followers, followings, connectedUsers));
+                pool.execute(new UserManager(listenSocket.accept(), users, tags, stubs, followers, followings, blogs, connectedUsers, idGenerator));
             }
         } catch (IOException e) {
             e.printStackTrace();

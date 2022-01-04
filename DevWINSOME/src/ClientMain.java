@@ -1,6 +1,7 @@
 // @Author Simone Passera
 
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
 
 import java.io.*;
@@ -39,6 +40,8 @@ public class ClientMain {
     private static Type CodeReturnType;
     // Oggetto gson
     private static Gson gson;
+    // Oggetto gson che considera le annotazioni
+    private static Gson gsonExpose;
     // Username connesso
     private static String usernameConnected = null;
 
@@ -101,6 +104,7 @@ public class ClientMain {
             // Leggo i comandi
             CodeReturnType = new TypeToken<CodeReturn>(){}.getType();
             gson = new Gson();
+            gsonExpose = new GsonBuilder().excludeFieldsWithoutExposeAnnotation().create();
 
             while (true) {
                 System.out.flush();
@@ -200,6 +204,9 @@ public class ClientMain {
                     case "unfollow":
                         if (command.length < 2) { System.out.println("\033[1m<\033[22m \033[1munfollow\033[22m <username>"); break; }
                         unfollowUser(command[1]);
+                        break;
+                    case "blog":
+                        viewBlog();
                         break;
                     case "exit":
                         exit();
@@ -320,6 +327,7 @@ public class ClientMain {
         System.out.println("\033[1m<\033[22m \033[1mlist following\033[22m \033[50Gvisualizza la lista degli utenti che segui.");
         System.out.println("\033[1m<\033[22m \033[1mfollow\033[22m <username>\033[50Gpermette di seguire un utente.");
         System.out.println("\033[1m<\033[22m \033[1munfollow\033[22m <username>\033[50Gpermette di non seguire più un utente.");
+        System.out.println("\033[1m<\033[22m \033[1mblog\033[22m \033[50Gvisualizza la lista dei post nel proprio blog.");
         System.out.println("\033[1m<\033[22m \033[1mhelp\033[22m \033[50Gmostra la lista dei comandi.");
         System.out.println("\033[1m<\033[22m \033[1mverbose\033[22m \033[50Gabilita la stampa dei codici di risposta dal server.");
         System.out.println("\033[1m<\033[22m \033[1mexit\033[22m \033[50Gtermina il processo.");
@@ -542,6 +550,60 @@ public class ClientMain {
         } catch (IOException | NumberFormatException e) {
             System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
         }
+    }
+
+    private static void viewBlog() {
+        outRequest.println("blog");
+        outRequest.flush();
+
+        int code = 0;
+        String message = null;
+
+        try {
+            code = Integer.parseInt(inResponse.readLine());
+            message = inResponse.readLine();
+        } catch (IOException | NumberFormatException e) {
+            System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
+            return;
+        }
+
+        if (code != 201){
+            if (verbose) System.out.println("\033[1m<\033[22m [\033[1m" + code + "\033[22m] " + message);
+            else System.out.println("\033[1m<\033[22m " + message);
+        } else {
+
+            int size;
+
+            try {
+                size = Integer.parseInt(inResponse.readLine());
+            } catch (IOException | NumberFormatException e) {
+                System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
+                return;
+            }
+
+            if (size == 0) {
+                System.out.println("\033[1m<\033[22m blog vuoto");
+                return;
+            }
+
+            Post post = null;
+            // Tipo post
+            Type postType = new TypeToken<Post>(){}.getType();
+
+            System.out.println("\033[1m<\033[22m         Id\033[21G|        Autore\033[43G|        Titolo");
+            System.out.println("\033[1m<\033[22m ---------------------------------------------------------------");
+
+            try {
+                for(int i = 0; i < size; i++) {
+                    post = gsonExpose.fromJson(inResponse.readLine(), postType);
+                    System.out.println("\033[1m<\033[22m         " + post.getId() + "\033[21G|   " + post.getAuthor() + "\033[43G|   " + post.getTitle());
+                }
+            } catch (IOException e) {
+                System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
+                return;
+            }
+        }
+
     }
 
     private static int printResponse() throws NumberFormatException, IOException {

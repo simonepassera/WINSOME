@@ -1,6 +1,7 @@
 // @Author Simone Passera
 
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
 
 import java.io.*;
@@ -11,6 +12,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Vector;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class UserManager implements Runnable {
     // Socket per la connessione persistente con il client
@@ -27,24 +29,33 @@ public class UserManager implements Runnable {
     private final ConcurrentHashMap<String, Vector<String>> followers;
     // Mappa (username, following)
     private final ConcurrentHashMap<String, Vector<String>> followings;
+    // Mappa (username, blog)
+    private final ConcurrentHashMap<String, Vector<Post>> blogs;
     // Lista degli utenti connessi
     private final Vector<String> connectedUsers;
+    // Generatore id per un post
+    private final AtomicInteger idGenerator;
     // Variabile di terminazione
     private boolean exit = true;
     // Oggetto gson
     private Gson gson;
+    // Oggetto gson che considera le annotazioni
+    private Gson gsonExpose;
     // Tipo dell'oggetto restituito
     Type CodeReturnType;
 
-    public UserManager(Socket user, ConcurrentHashMap<String, String> users, ConcurrentHashMap<String, ArrayList<String>> tags, ConcurrentHashMap<String, NotifyFollowersInterface> stubs, ConcurrentHashMap<String, Vector<String>> followers, ConcurrentHashMap<String, Vector<String>> followings, Vector<String> connectedUsers) {
+    public UserManager(Socket user, ConcurrentHashMap<String, String> users, ConcurrentHashMap<String, ArrayList<String>> tags, ConcurrentHashMap<String, NotifyFollowersInterface> stubs, ConcurrentHashMap<String, Vector<String>> followers, ConcurrentHashMap<String, Vector<String>> followings, ConcurrentHashMap<String, Vector<Post>> blogs, Vector<String> connectedUsers, AtomicInteger idGenerator) {
         this.user = user;
         this.users = users;
         this.tags = tags;
         this.stubs = stubs;
         this.followers = followers;
         this.followings = followings;
+        this.blogs = blogs;
         this.connectedUsers = connectedUsers;
+        this.idGenerator = idGenerator;
         gson = new Gson();
+        gsonExpose = new GsonBuilder().excludeFieldsWithoutExposeAnnotation().create();
         CodeReturnType = new TypeToken<CodeReturn>(){}.getType();
     }
 
@@ -86,6 +97,9 @@ public class UserManager implements Runnable {
                     case "unfollow":
                         username = request.readLine();
                         unfollowUser(username, response);
+                        break;
+                    case "blog":
+                        viewBlog(response);
                         break;
                 }
             }
@@ -288,7 +302,7 @@ public class UserManager implements Runnable {
             response.flush();
             return;
         }
-        // Controllo se l'utente è registrato
+        // Controllo se username è registrato
         if (!users.containsKey(username)) {
             response.println(404);
             response.println("errore, utente " + username + " non esiste");
@@ -379,7 +393,7 @@ public class UserManager implements Runnable {
             response.flush();
             return;
         }
-        // Controllo se l'utente è registrato
+        // Controllo se username è registrato
         if (!users.containsKey(username)) {
             response.println(404);
             response.println("errore, utente " + username + " non esiste");
@@ -427,5 +441,34 @@ public class UserManager implements Runnable {
         else response.println("Ora non segui più " + username);
 
         response.flush();
+    }
+
+    private void viewBlog(PrintWriter response) {
+        // Controllo che ci sia un utente connesso
+        if (usernameLogin == null) {
+            response.println(406);
+            response.println("errore, nessun utente connesso");
+            response.flush();
+            return;
+        }
+
+        response.println(201);
+        response.println("invio i post");
+        response.flush();
+
+        // Recupero la lista dei post
+        Vector<Post> post = blogs.get(usernameLogin);
+        // Tipo post
+        Type postType = new TypeToken<Post>(){}.getType();
+
+        synchronized (post) {
+            response.println(post.size());
+            response.flush();
+
+            for (Post p : post) {
+                response.println(gsonExpose.toJson(p, postType));
+                response.flush();
+            }
+        }
     }
 }

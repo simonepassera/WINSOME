@@ -20,12 +20,14 @@ public class WinsomeRMI extends UnicastRemoteObject implements WinsomeRMIService
     private final ConcurrentHashMap<String, Vector<String>> followers;
     // Mappa (username, following)
     private final ConcurrentHashMap<String, Vector<String>> followings;
+    // Mappa (username, blog)
+    private final ConcurrentHashMap<String, Vector<Post>> blogs;
     // Tipo dell'oggetto restituito
     Type CodeReturnType;
     // Oggetto gson
     Gson gson;
 
-    public WinsomeRMI(ConcurrentHashMap<String, String> users, ConcurrentHashMap<String, ArrayList<String>> tags, ConcurrentHashMap<String, NotifyFollowersInterface> stubs, ConcurrentHashMap<String, Vector<String>> followers, ConcurrentHashMap<String, Vector<String>> followings) throws RemoteException {
+    public WinsomeRMI(ConcurrentHashMap<String, String> users, ConcurrentHashMap<String, ArrayList<String>> tags, ConcurrentHashMap<String, NotifyFollowersInterface> stubs, ConcurrentHashMap<String, Vector<String>> followers, ConcurrentHashMap<String, Vector<String>> followings, ConcurrentHashMap<String, Vector<Post>> blogs) throws RemoteException {
         super();
 
         this.users = users;
@@ -33,6 +35,7 @@ public class WinsomeRMI extends UnicastRemoteObject implements WinsomeRMIService
         this.stubs = stubs;
         this.followers = followers;
         this.followings = followings;
+        this.blogs = blogs;
         CodeReturnType = new TypeToken<CodeReturn>(){}.getType();
         gson = new Gson();
     }
@@ -65,21 +68,39 @@ public class WinsomeRMI extends UnicastRemoteObject implements WinsomeRMIService
             tagsList.add(tag.toLowerCase());
         }
 
-        // Inserisco username e password se l'utente non esiste
-        if (users.putIfAbsent(username, password) == null) {
-            // Inserisco i tag
-            tags.put(username, tagsList);
-            // Inizializzo la lista dei followers
-            followers.put(username, new Vector<>());
-            // Inizializzo la lista dei following
-            followings.put(username, new Vector<>());
+        boolean insertUsers = false;
 
-            // Ok
-            return gson.toJson(new CodeReturn(200, "ok"), CodeReturnType);
+        synchronized (users) {
+            synchronized (tags) {
+                synchronized (followings) {
+                    synchronized (followers) {
+                        synchronized (blogs) {
+                            // Inserisco username e password se l'utente non esiste
+
+                            if (users.putIfAbsent(username, password) == null) {
+                                // Inserisco i tag
+                                tags.put(username, tagsList);
+                                // Inizializzo la lista dei following
+                                followings.put(username, new Vector<>());
+                                // Inizializzo la lista dei followers
+                                followers.put(username, new Vector<>());
+                                // Inizializzo il blog
+                                blogs.put(username, new Vector<>());
+
+                                insertUsers = true;
+                            }
+                        }
+                    }
+                }
+            }
         }
 
-        // L'utente esiste già
-        return gson.toJson(new CodeReturn(403, "errore, utente " + username + " già esistente"), CodeReturnType);
+        if (insertUsers)
+            // Ok
+            return gson.toJson(new CodeReturn(200, "ok"), CodeReturnType);
+        else
+            // L'utente esiste già
+            return gson.toJson(new CodeReturn(403, "errore, utente " + username + " già esistente"), CodeReturnType);
     }
 
     public String registerListFollowers(String username, NotifyFollowersInterface callback) throws RemoteException {
