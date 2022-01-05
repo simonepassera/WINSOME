@@ -31,6 +31,8 @@ public class UserManager implements Runnable {
     private final ConcurrentHashMap<String, Vector<String>> followings;
     // Mappa (username, blog)
     private final ConcurrentHashMap<String, Vector<Post>> blogs;
+    // Mappa (idPost, post)
+    private final ConcurrentHashMap<Integer, Post> posts;
     // Lista degli utenti connessi
     private final Vector<String> connectedUsers;
     // Generatore id per un post
@@ -44,7 +46,7 @@ public class UserManager implements Runnable {
     // Tipo dell'oggetto restituito
     Type CodeReturnType;
 
-    public UserManager(Socket user, ConcurrentHashMap<String, String> users, ConcurrentHashMap<String, ArrayList<String>> tags, ConcurrentHashMap<String, NotifyFollowersInterface> stubs, ConcurrentHashMap<String, Vector<String>> followers, ConcurrentHashMap<String, Vector<String>> followings, ConcurrentHashMap<String, Vector<Post>> blogs, Vector<String> connectedUsers, AtomicInteger idGenerator) {
+    public UserManager(Socket user, ConcurrentHashMap<String, String> users, ConcurrentHashMap<String, ArrayList<String>> tags, ConcurrentHashMap<String, NotifyFollowersInterface> stubs, ConcurrentHashMap<String, Vector<String>> followers, ConcurrentHashMap<String, Vector<String>> followings, ConcurrentHashMap<String, Vector<Post>> blogs, ConcurrentHashMap<Integer, Post> posts, Vector<String> connectedUsers, AtomicInteger idGenerator) {
         this.user = user;
         this.users = users;
         this.tags = tags;
@@ -52,6 +54,7 @@ public class UserManager implements Runnable {
         this.followers = followers;
         this.followings = followings;
         this.blogs = blogs;
+        this.posts = posts;
         this.connectedUsers = connectedUsers;
         this.idGenerator = idGenerator;
         gson = new Gson();
@@ -100,6 +103,9 @@ public class UserManager implements Runnable {
                         break;
                     case "blog":
                         viewBlog(response);
+                        break;
+                    case "showFeed":
+                        showFeed(response);
                         break;
                 }
             }
@@ -468,6 +474,49 @@ public class UserManager implements Runnable {
             for (Post p : post) {
                 response.println(gsonExpose.toJson(p, postType));
                 response.flush();
+            }
+        }
+    }
+
+    private void showFeed(PrintWriter response) {
+        // Controllo che ci sia un utente connesso
+        if (usernameLogin == null) {
+            response.println(406);
+            response.println("errore, nessun utente connesso");
+            response.flush();
+            return;
+        }
+
+        response.println(201);
+        response.println("invio i post");
+        response.flush();
+
+        // Tipo post
+        Type postType = new TypeToken<Post>(){}.getType();
+        // Recupero la lista dei following
+        Vector<String> listFollowing = followings.get(usernameLogin);
+        Vector<Post> postsFollowed;
+
+        synchronized (listFollowing) {
+            // Invio il numero di following
+            response.println(listFollowing.size());
+            response.flush();
+
+            for (String nameFollowed : listFollowing) {
+                // Recupero il blog di ogni followed
+                postsFollowed = blogs.get(nameFollowed);
+
+                synchronized (postsFollowed) {
+                    // Invio il numero di post all'interno del blog
+                    response.println(postsFollowed.size());
+                    response.flush();
+
+                    for (Post p : postsFollowed) {
+                        // Invio i post nel blog
+                        response.println(gsonExpose.toJson(p, postType));
+                        response.flush();
+                    }
+                }
             }
         }
     }

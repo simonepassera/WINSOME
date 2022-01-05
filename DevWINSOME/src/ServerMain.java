@@ -30,6 +30,8 @@ public class ServerMain {
     private static ConcurrentHashMap<String, Vector<String>> followings;
     // Mappa (username, blog)
     private static ConcurrentHashMap<String, Vector<Post>> blogs;
+    // Mappa (idPost, post)
+    private static ConcurrentHashMap<Integer, Post> posts;
     // Lista degli utenti connessi
     private static Vector<String> connectedUsers;
     // Generatore id per un post
@@ -63,6 +65,7 @@ public class ServerMain {
         followers = new ConcurrentHashMap<>();
         followings = new ConcurrentHashMap<>();
         blogs = new ConcurrentHashMap<>();
+        posts = new ConcurrentHashMap<>();
         connectedUsers = new Vector<>();
         idGenerator = new AtomicInteger(9);
 
@@ -91,7 +94,7 @@ public class ServerMain {
             System.out.println("Server avviato ...");
 
             while (true) {
-                pool.execute(new UserManager(listenSocket.accept(), users, tags, stubs, followers, followings, blogs, connectedUsers, idGenerator));
+                pool.execute(new UserManager(listenSocket.accept(), users, tags, stubs, followers, followings, blogs, posts, connectedUsers, idGenerator));
             }
         } catch (IOException e) {
             e.printStackTrace();

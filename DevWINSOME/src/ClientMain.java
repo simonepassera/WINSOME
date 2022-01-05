@@ -110,7 +110,7 @@ public class ClientMain {
                 System.out.flush();
                 System.out.print("> ");
 
-                line = input.nextLine();
+                while((line = input.nextLine()).length() == 0) { System.out.flush(); System.out.print("> "); }
                 command = line.split(" ");
 
                 switch (command[0]) {
@@ -207,6 +207,32 @@ public class ClientMain {
                         break;
                     case "blog":
                         viewBlog();
+                        break;
+                    case "show":
+                        if (command.length >= 2) {
+                            if (command[1].equals("feed")) { showFeed(); break; }
+                            if (command[1].equals("post")) {
+                                if (command.length >= 3) {
+                                    int id;
+
+                                    try {
+                                        id = Integer.parseInt(command[2]);
+                                    } catch (NumberFormatException e) {
+                                        System.out.println("\033[1m<\033[22m \033[1mshow post\033[22m <id>");
+                                        break;
+                                    }
+
+                                    showPost(id);
+                                    break;
+                                } else {
+                                    System.out.println("\033[1m<\033[22m \033[1mshow post\033[22m <id>");
+                                    break;
+                                }
+                            }
+                        }
+
+                        System.out.println("\033[1m<\033[22m \033[1mshow feed\033[22m");
+                        System.out.println("\033[1m<\033[22m \033[1mshow post\033[22m <id>");
                         break;
                     case "exit":
                         exit();
@@ -321,16 +347,18 @@ public class ClientMain {
         System.out.println("\033[1m<\033[22m Comandi:");
         System.out.println("\033[1m<\033[22m \033[1mregister\033[22m <username> <password> <tags>\033[50Ginserisce un nuovo utente, <tags> è una lista di tag separati da uno spazio, al massimo 5 tag.");
         System.out.println("\033[1m<\033[22m \033[1mlogin\033[22m <username> <password>\033[50Glogin di un utente già registrato per accedere al servizio.");
-        System.out.println("\033[1m<\033[22m \033[1mlogout\033[22m \033[50Geffettua il logout dal servizio.");
-        System.out.println("\033[1m<\033[22m \033[1mlist users\033[22m \033[50Gvisualizza la lista degli utenti registrati al servizio.");
-        System.out.println("\033[1m<\033[22m \033[1mlist followers\033[22m \033[50Gvisualizza la lista dei propri follower.");
-        System.out.println("\033[1m<\033[22m \033[1mlist following\033[22m \033[50Gvisualizza la lista degli utenti che segui.");
+        System.out.println("\033[1m<\033[22m \033[1mlogout\033[22m\033[50Geffettua il logout dal servizio.");
+        System.out.println("\033[1m<\033[22m \033[1mlist users\033[22m\033[50Gvisualizza la lista degli utenti registrati al servizio.");
+        System.out.println("\033[1m<\033[22m \033[1mlist followers\033[22m\033[50Gvisualizza la lista dei propri follower.");
+        System.out.println("\033[1m<\033[22m \033[1mlist following\033[22m\033[50Gvisualizza la lista degli utenti che segui.");
         System.out.println("\033[1m<\033[22m \033[1mfollow\033[22m <username>\033[50Gpermette di seguire un utente.");
         System.out.println("\033[1m<\033[22m \033[1munfollow\033[22m <username>\033[50Gpermette di non seguire più un utente.");
-        System.out.println("\033[1m<\033[22m \033[1mblog\033[22m \033[50Gvisualizza la lista dei post nel proprio blog.");
-        System.out.println("\033[1m<\033[22m \033[1mhelp\033[22m \033[50Gmostra la lista dei comandi.");
-        System.out.println("\033[1m<\033[22m \033[1mverbose\033[22m \033[50Gabilita la stampa dei codici di risposta dal server.");
-        System.out.println("\033[1m<\033[22m \033[1mexit\033[22m \033[50Gtermina il processo.");
+        System.out.println("\033[1m<\033[22m \033[1mblog\033[22m\033[50Gvisualizza la lista dei post nel proprio blog.");
+        System.out.println("\033[1m<\033[22m \033[1mshow feed\033[22m\033[50Gmostra il proprio feed.");
+        System.out.println("\033[1m<\033[22m \033[1mshow post\033[22m <id>\033[50Gmostra il contenuto del post, i voti positivi e negativi ed i relativi commenti.");
+        System.out.println("\033[1m<\033[22m \033[1mhelp\033[22m\033[50Gmostra questa lista.");
+        System.out.println("\033[1m<\033[22m \033[1mverbose\033[22m\033[50Gabilita la stampa dei codici di risposta dal server.");
+        System.out.println("\033[1m<\033[22m \033[1mexit\033[22m\033[50Gtermina il processo.");
     }
 
     private static void exit() {
@@ -603,6 +631,68 @@ public class ClientMain {
                 return;
             }
         }
+    }
+
+    private static void showFeed() {
+        outRequest.println("showFeed");
+        outRequest.flush();
+
+        int code = 0;
+        String message = null;
+
+        try {
+            code = Integer.parseInt(inResponse.readLine());
+            message = inResponse.readLine();
+        } catch (IOException | NumberFormatException e) {
+            System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
+            return;
+        }
+
+        if (code != 201){
+            if (verbose) System.out.println("\033[1m<\033[22m [\033[1m" + code + "\033[22m] " + message);
+            else System.out.println("\033[1m<\033[22m " + message);
+        } else {
+
+            int numFollowing;
+
+            try {
+                numFollowing = Integer.parseInt(inResponse.readLine());
+            } catch (IOException | NumberFormatException e) {
+                System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
+                return;
+            }
+
+            if (numFollowing == 0) {
+                System.out.println("\033[1m<\033[22m feed vuoto");
+                return;
+            }
+
+            Post post = null;
+            // Tipo post
+            Type postType = new TypeToken<Post>(){}.getType();
+
+            System.out.println("\033[1m<\033[22m         Id\033[21G|        Autore\033[43G|        Titolo");
+            System.out.println("\033[1m<\033[22m ---------------------------------------------------------------");
+
+            int numPosts;
+
+            for(int i = 0; i < numFollowing; i++) {
+                try {
+                    numPosts = Integer.parseInt(inResponse.readLine());
+
+                    for (int k = 0; k < numPosts; k++) {
+                        post = gsonExpose.fromJson(inResponse.readLine(), postType);
+                        System.out.println("\033[1m<\033[22m         " + post.getId() + "\033[21G|   " + post.getAuthor() + "\033[43G|   " + post.getTitle());
+                    }
+                } catch (IOException | NumberFormatException e) {
+                    System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
+                    return;
+                }
+            }
+        }
+    }
+
+    private static void showPost(int id) {
 
     }
 
