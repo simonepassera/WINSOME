@@ -40,11 +40,14 @@ public class UserManager implements Runnable {
     // Variabile di terminazione
     private boolean exit = true;
     // Oggetto gson
-    private Gson gson;
+    private final Gson gson;
     // Oggetto gson che considera le annotazioni
-    private Gson gsonExpose;
+    private final Gson gsonExpose;
     // Tipo dell'oggetto restituito
     Type CodeReturnType;
+    // Tipo post
+    Type postType;
+
 
     public UserManager(Socket user, ConcurrentHashMap<String, String> users, ConcurrentHashMap<String, ArrayList<String>> tags, ConcurrentHashMap<String, NotifyFollowersInterface> stubs, ConcurrentHashMap<String, Vector<String>> followers, ConcurrentHashMap<String, Vector<String>> followings, ConcurrentHashMap<String, Vector<Post>> blogs, ConcurrentHashMap<Integer, Post> posts, Vector<String> connectedUsers, AtomicInteger idGenerator) {
         this.user = user;
@@ -60,6 +63,7 @@ public class UserManager implements Runnable {
         gson = new Gson();
         gsonExpose = new GsonBuilder().excludeFieldsWithoutExposeAnnotation().create();
         CodeReturnType = new TypeToken<CodeReturn>(){}.getType();
+        postType = new TypeToken<Post>() {}.getType();
     }
 
     @Override
@@ -67,6 +71,7 @@ public class UserManager implements Runnable {
         try (PrintWriter response = new PrintWriter(user.getOutputStream());
              BufferedReader request = new BufferedReader(new InputStreamReader(user.getInputStream()))) {
             String command, username, password, title, content;
+            int id = 0;
 
             while (exit) {
                 command = request.readLine();
@@ -111,6 +116,17 @@ public class UserManager implements Runnable {
                         title =  request.readLine();
                         content = request.readLine();
                         createPost(title, content, response);
+                        break;
+                    case "showPost":
+                        try {
+                            id = Integer.parseInt(request.readLine());
+                        } catch (NumberFormatException fe) {
+                            response.println(415);
+                            response.println("id post errore di conversione");
+                            response.flush();
+                        }
+
+                        showPost(id, response);
                         break;
                 }
             }
@@ -469,8 +485,6 @@ public class UserManager implements Runnable {
 
         // Recupero la lista dei post
         Vector<Post> post = blogs.get(usernameLogin);
-        // Tipo post
-        Type postType = new TypeToken<Post>(){}.getType();
 
         synchronized (post) {
             response.println(post.size());
@@ -496,8 +510,6 @@ public class UserManager implements Runnable {
         response.println("invio i post");
         response.flush();
 
-        // Tipo post
-        Type postType = new TypeToken<Post>(){}.getType();
         // Recupero la lista dei following
         Vector<String> listFollowing = followings.get(usernameLogin);
         Vector<Post> postsFollowed;
@@ -568,7 +580,41 @@ public class UserManager implements Runnable {
         }
         // ok
         response.println(200);
-        response.println("post pubblicato");
+        response.println("post pubblicato (id = " + newPost.getId() + ")");
+        response.flush();
+    }
+
+    private void showPost(Integer id, PrintWriter response) {
+        // Argomento null
+        if (id == null) {
+            response.println(400);
+            response.println("errore, uno o più argomenti uguali a null");
+            response.flush();
+            return;
+        }
+        // Controllo che ci sia un utente connesso
+        if (usernameLogin == null) {
+            response.println(406);
+            response.println("errore, nessun utente connesso");
+            response.flush();
+            return;
+        }
+        // Recupero il post
+        Post p = posts.get(id);
+        // Controllo se esiste
+        if (p == null) {
+            response.println(416);
+            response.println("errore, post " + id + " non esiste");
+            response.flush();
+            return;
+        }
+
+        response.println(201);
+        response.println("invio il post");
+        response.flush();
+
+        // Invio il post
+        response.println(gson.toJson(p, postType));
         response.flush();
     }
 }

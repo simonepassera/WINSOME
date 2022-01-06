@@ -387,7 +387,7 @@ public class ClientMain {
     }
 
     private static void register(String username, String password, ArrayList<String> tags) {
-        String hexPass = null;
+        String hexPass;
 
         try {
             hexPass = Hash.encrypt(password);
@@ -396,7 +396,7 @@ public class ClientMain {
             return;
         }
 
-        CodeReturn code = null;
+        CodeReturn code;
 
         try {
             code = gson.fromJson(winsomeRMI.register(username, hexPass, tags), CodeReturnType);
@@ -410,7 +410,7 @@ public class ClientMain {
     }
 
     private static int login(String username, String password) {
-        String hexPass = null;
+        String hexPass;
 
         try {
             hexPass = Hash.encrypt(password);
@@ -459,8 +459,8 @@ public class ClientMain {
         outRequest.println("listUsers");
         outRequest.flush();
 
-        int code = 0;
-        String message = null;
+        int code;
+        String message;
 
         try {
             code = Integer.parseInt(inResponse.readLine());
@@ -474,7 +474,7 @@ public class ClientMain {
             if (verbose) System.out.println("\033[1m<\033[22m [\033[1m" + code + "\033[22m] " + message);
             else System.out.println("\033[1m<\033[22m " + message);
         } else {
-            HashMap<String, ArrayList<String>> listUsersTags = null;
+            HashMap<String, ArrayList<String>> listUsersTags;
             Type hashMapType = new TypeToken<HashMap<String, ArrayList<String>>>(){}.getType();
 
             try {
@@ -530,8 +530,8 @@ public class ClientMain {
         outRequest.println("listFollowing");
         outRequest.flush();
 
-        int code = 0;
-        String message = null;
+        int code;
+        String message;
 
         try {
             code = Integer.parseInt(inResponse.readLine());
@@ -545,7 +545,7 @@ public class ClientMain {
             if (verbose) System.out.println("\033[1m<\033[22m [\033[1m" + code + "\033[22m] " + message);
             else System.out.println("\033[1m<\033[22m " + message);
         } else {
-            ArrayList<String> listUsers = null;
+            ArrayList<String> listUsers;
             Type arrayListType = new TypeToken<ArrayList<String>>(){}.getType();
 
             try {
@@ -596,8 +596,8 @@ public class ClientMain {
         outRequest.println("blog");
         outRequest.flush();
 
-        int code = 0;
-        String message = null;
+        int code;
+        String message;
 
         try {
             code = Integer.parseInt(inResponse.readLine());
@@ -625,7 +625,7 @@ public class ClientMain {
                 return;
             }
 
-            Post post = null;
+            Post post;
             // Tipo post
             Type postType = new TypeToken<Post>(){}.getType();
 
@@ -639,7 +639,6 @@ public class ClientMain {
                 }
             } catch (IOException e) {
                 System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
-                return;
             }
         }
     }
@@ -648,8 +647,8 @@ public class ClientMain {
         outRequest.println("showFeed");
         outRequest.flush();
 
-        int code = 0;
-        String message = null;
+        int code;
+        String message;
 
         try {
             code = Integer.parseInt(inResponse.readLine());
@@ -678,7 +677,7 @@ public class ClientMain {
                 return;
             }
 
-            Post post = null;
+            Post post;
             // Tipo post
             Type postType = new TypeToken<Post>(){}.getType();
 
@@ -723,7 +722,40 @@ public class ClientMain {
     }
 
     private static void showPost(int id) {
+        outRequest.println("showPost");
+        outRequest.println(id);
+        outRequest.flush();
 
+        int code;
+        String message;
+
+        try {
+            code = Integer.parseInt(inResponse.readLine());
+            message = inResponse.readLine();
+        } catch (IOException | NumberFormatException e) {
+            System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
+            return;
+        }
+
+        if (code != 201){
+            if (verbose) System.out.println("\033[1m<\033[22m [\033[1m" + code + "\033[22m] " + message);
+            else System.out.println("\033[1m<\033[22m " + message);
+        } else {
+            Post post;
+            // Tipo post
+            Type postType = new TypeToken<Post>(){}.getType();
+
+            try {
+                post = gson.fromJson(inResponse.readLine(), postType);
+            } catch (IOException e) {
+                System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
+                return;
+            }
+
+            System.out.println("\033[1m<\033[22m Autore: " + post.getAuthor());
+            System.out.println("\033[1m<\033[22m Titolo: " + post.getTitle());
+            System.out.println("\033[1m<\033[22m Contenuto: " + post.getText());
+        }
     }
 
     private static int printResponse() throws NumberFormatException, IOException {
