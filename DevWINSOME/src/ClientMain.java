@@ -12,6 +12,8 @@ import java.rmi.*;
 import java.rmi.registry.*;
 import java.security.*;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class ClientMain {
     // Indirizzo del server WINSOME
@@ -96,7 +98,7 @@ public class ClientMain {
             // Scanner per il parsing da linea di comando
             Scanner input = new Scanner(System.in);
             String line;
-            String[] command;
+            ArrayList<String> command = new ArrayList<>();
             // Pulisco il terminale
             System.out.print("\033[H\033[2J");
             System.out.flush();
@@ -105,31 +107,36 @@ public class ClientMain {
             CodeReturnType = new TypeToken<CodeReturn>(){}.getType();
             gson = new Gson();
             gsonExpose = new GsonBuilder().excludeFieldsWithoutExposeAnnotation().create();
+            Pattern p = Pattern.compile("([^\"]\\S*|\".+?\")\\s*");
+            Matcher m;
 
             while (true) {
                 System.out.flush();
                 System.out.print("> ");
 
                 while((line = input.nextLine()).length() == 0) { System.out.flush(); System.out.print("> "); }
-                command = line.split(" ");
 
-                switch (command[0]) {
+                m = p.matcher(line);
+                command.clear();
+                while (m.find()) command.add(m.group(1).replace("\"", ""));
+
+                switch (command.get(0)) {
                     case "help": help(); break;
                     case "verbose":
                         if (verbose = !verbose) System.out.println("\033[1m<\033[22m abilitato");
                         else System.out.println("\033[1m<\033[22m disabilitato");
                         break;
                     case "register":
-                        if (command.length < 4 || command.length > 8) { System.out.println("\033[1m<\033[22m \033[1mregister\033[22m <username [\033[1mmax 15\033[22m]> <password> <tags [\033[1mmax 5\033[22m]>"); break; }
+                        if (command.size() < 4 || command.size() > 8) { System.out.println("\033[1m<\033[22m \033[1mregister\033[22m <username [\033[1mmax 15\033[22m]> <password> <tags [\033[1mmax 5\033[22m]>"); break; }
 
                         ArrayList<String> tags = new ArrayList<>();
-                        for (int i = 3; i < command.length; i++) tags.add(command[i]);
+                        for (int i = 3; i < command.size(); i++) tags.add(command.get(i));
 
-                        register(command[1], command[2], tags);
+                        register(command.get(1), command.get(2), tags);
                         break;
                     case "login":
-                        if (command.length < 3) { System.out.println("\033[1m<\033[22m \033[1mlogin\033[22m <username> <password>"); break; }
-                        if (login(command[1], command[2]) == 0) {
+                        if (command.size() < 3) { System.out.println("\033[1m<\033[22m \033[1mlogin\033[22m <username> <password>"); break; }
+                        if (login(command.get(1), command.get(2)) == 0) {
                             listFollowers = new Vector<>();
                             // Creo l'oggetto usato dal server
                             try {
@@ -178,7 +185,7 @@ public class ClientMain {
                         break;
                     case "list":
                         String cmd = "error";
-                        if (command.length >= 2) cmd = command[1];
+                        if (command.size() >= 2) cmd = command.get(1);
 
                         switch (cmd) {
                             case "users":
@@ -198,25 +205,25 @@ public class ClientMain {
 
                         break;
                     case "follow":
-                        if (command.length < 2) { System.out.println("\033[1m<\033[22m \033[1mfollow\033[22m <username>"); break; }
-                        followUser(command[1]);
+                        if (command.size() < 2) { System.out.println("\033[1m<\033[22m \033[1mfollow\033[22m <username>"); break; }
+                        followUser(command.get(1));
                         break;
                     case "unfollow":
-                        if (command.length < 2) { System.out.println("\033[1m<\033[22m \033[1munfollow\033[22m <username>"); break; }
-                        unfollowUser(command[1]);
+                        if (command.size() < 2) { System.out.println("\033[1m<\033[22m \033[1munfollow\033[22m <username>"); break; }
+                        unfollowUser(command.get(1));
                         break;
                     case "blog":
                         viewBlog();
                         break;
                     case "show":
-                        if (command.length >= 2) {
-                            if (command[1].equals("feed")) { showFeed(); break; }
-                            if (command[1].equals("post")) {
-                                if (command.length >= 3) {
+                        if (command.size() >= 2) {
+                            if (command.get(1).equals("feed")) { showFeed(); break; }
+                            if (command.get(1).equals("post")) {
+                                if (command.size() >= 3) {
                                     int id;
 
                                     try {
-                                        id = Integer.parseInt(command[2]);
+                                        id = Integer.parseInt(command.get(2));
                                     } catch (NumberFormatException e) {
                                         System.out.println("\033[1m<\033[22m \033[1mshow post\033[22m <id>");
                                         break;
@@ -233,6 +240,10 @@ public class ClientMain {
 
                         System.out.println("\033[1m<\033[22m \033[1mshow feed\033[22m");
                         System.out.println("\033[1m<\033[22m \033[1mshow post\033[22m <id>");
+                        break;
+                    case "post":
+                        if (command.size() < 3) { System.out.println("\033[1m<\033[22m \033[1mpost\033[22m <title [\033[1mmax 20\033[22m]> <content [\033[1mmax 500\033[22m]>"); break; }
+                        createPost(command.get(1), command.get(2));
                         break;
                     case "exit":
                         exit();
@@ -353,6 +364,7 @@ public class ClientMain {
         System.out.println("\033[1m<\033[22m \033[1mlist following\033[22m\033[50Gvisualizza la lista degli utenti che segui.");
         System.out.println("\033[1m<\033[22m \033[1mfollow\033[22m <username>\033[50Gpermette di seguire un utente.");
         System.out.println("\033[1m<\033[22m \033[1munfollow\033[22m <username>\033[50Gpermette di non seguire più un utente.");
+        System.out.println("\033[1m<\033[22m \033[1mpost\033[22m <title> <content>\033[50Gpermette di pubblicare un nuovo post.");
         System.out.println("\033[1m<\033[22m \033[1mblog\033[22m\033[50Gvisualizza la lista dei post nel proprio blog.");
         System.out.println("\033[1m<\033[22m \033[1mshow feed\033[22m\033[50Gmostra il proprio feed.");
         System.out.println("\033[1m<\033[22m \033[1mshow post\033[22m <id>\033[50Gmostra il contenuto del post, i voti positivi e negativi ed i relativi commenti.");
@@ -599,7 +611,6 @@ public class ClientMain {
             if (verbose) System.out.println("\033[1m<\033[22m [\033[1m" + code + "\033[22m] " + message);
             else System.out.println("\033[1m<\033[22m " + message);
         } else {
-
             int size;
 
             try {
@@ -619,7 +630,7 @@ public class ClientMain {
             Type postType = new TypeToken<Post>(){}.getType();
 
             System.out.println("\033[1m<\033[22m         Id\033[21G|        Autore\033[43G|        Titolo");
-            System.out.println("\033[1m<\033[22m ---------------------------------------------------------------");
+            System.out.println("\033[1m<\033[22m -----------------------------------------------------------------");
 
             try {
                 for(int i = 0; i < size; i++) {
@@ -671,14 +682,18 @@ public class ClientMain {
             // Tipo post
             Type postType = new TypeToken<Post>(){}.getType();
 
-            System.out.println("\033[1m<\033[22m         Id\033[21G|        Autore\033[43G|        Titolo");
-            System.out.println("\033[1m<\033[22m ---------------------------------------------------------------");
-
             int numPosts;
+            boolean firstPost = true;
 
             for(int i = 0; i < numFollowing; i++) {
                 try {
                     numPosts = Integer.parseInt(inResponse.readLine());
+
+                    if (numPosts != 0 && firstPost) {
+                        System.out.println("\033[1m<\033[22m         Id\033[21G|        Autore\033[43G|        Titolo");
+                        System.out.println("\033[1m<\033[22m -----------------------------------------------------------------");
+                        firstPost = false;
+                    }
 
                     for (int k = 0; k < numPosts; k++) {
                         post = gsonExpose.fromJson(inResponse.readLine(), postType);
@@ -689,6 +704,21 @@ public class ClientMain {
                     return;
                 }
             }
+
+            if (firstPost) System.out.println("\033[1m<\033[22m feed vuoto");
+        }
+    }
+
+    private static void createPost(String title, String content) {
+        outRequest.println("createPost");
+        outRequest.println(title);
+        outRequest.println(content);
+        outRequest.flush();
+
+        try {
+            printResponse();
+        } catch (IOException | NumberFormatException e) {
+            System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
         }
     }
 

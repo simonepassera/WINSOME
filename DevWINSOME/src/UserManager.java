@@ -66,7 +66,7 @@ public class UserManager implements Runnable {
     public void run() {
         try (PrintWriter response = new PrintWriter(user.getOutputStream());
              BufferedReader request = new BufferedReader(new InputStreamReader(user.getInputStream()))) {
-            String command, username, password;
+            String command, username, password, title, content;
 
             while (exit) {
                 command = request.readLine();
@@ -106,6 +106,11 @@ public class UserManager implements Runnable {
                         break;
                     case "showFeed":
                         showFeed(response);
+                        break;
+                    case "createPost":
+                        title =  request.readLine();
+                        content = request.readLine();
+                        createPost(title, content, response);
                         break;
                 }
             }
@@ -519,5 +524,51 @@ public class UserManager implements Runnable {
                 }
             }
         }
+    }
+
+    private void createPost(String title, String content, PrintWriter response) {
+        // Argomenti null
+        if (title == null || content == null) {
+            response.println(400);
+            response.println("errore, uno o più argomenti uguali a null");
+            response.flush();
+            return;
+        }
+        // Controllo che ci sia un utente connesso
+        if (usernameLogin == null) {
+            response.println(406);
+            response.println("errore, nessun utente connesso");
+            response.flush();
+            return;
+        }
+        // Controllo la lunghezza del titolo
+        if (title.length() > 20) {
+            response.println(413);
+            response.println("errore, titolo del post troppo lungo [max 20]");
+            response.flush();
+            return;
+        }
+        // Controllo la lunghezza del contenuto
+        if (content.length() > 500) {
+            response.println(414);
+            response.println("errore, contenuto del post troppo lungo [max 500]");
+            response.flush();
+            return;
+        }
+        // Creo il post
+        Post newPost = new Post(usernameLogin, title, content, idGenerator);
+        // Inserisco il post nel blog dell'utente connesso, e nella lista di tutti i post
+        Vector<Post> blog = blogs.get(usernameLogin);
+
+        synchronized (blog) {
+            synchronized (posts) {
+                blog.add(newPost);
+                posts.putIfAbsent(newPost.getId(), newPost);
+            }
+        }
+        // ok
+        response.println(200);
+        response.println("post pubblicato");
+        response.flush();
     }
 }
