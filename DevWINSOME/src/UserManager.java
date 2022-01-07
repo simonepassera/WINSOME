@@ -10,6 +10,7 @@ import java.net.Socket;
 import java.rmi.RemoteException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Vector;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -127,6 +128,17 @@ public class UserManager implements Runnable {
                         }
 
                         showPost(id, response);
+                        break;
+                    case "rewinPost":
+                        try {
+                            id = Integer.parseInt(request.readLine());
+                        } catch (NumberFormatException fe) {
+                            response.println(415);
+                            response.println("id post errore di conversione");
+                            response.flush();
+                        }
+
+                        rewinPost(id, response);
                         break;
                 }
             }
@@ -336,6 +348,13 @@ public class UserManager implements Runnable {
             response.flush();
             return;
         }
+        // Controllo che non sia l'utente connesso
+        if (usernameLogin.equals(username)) {
+            response.println(419);
+            response.println("errore, non è possibile seguire se stessi");
+            response.flush();
+            return;
+        }
         // Controllo se posso seguire l'utente (almeno un tag in comune)
         ArrayList<String> userLoginTags = tags.get(usernameLogin);
         ArrayList<String> usernameTags = tags.get(username);
@@ -427,7 +446,6 @@ public class UserManager implements Runnable {
             response.flush();
             return;
         }
-
         // Controllo se l'utente non segue username
         Vector<String> listFollowing = followings.get(usernameLogin);
 
@@ -615,6 +633,82 @@ public class UserManager implements Runnable {
 
         // Invio il post
         response.println(gson.toJson(p, postType));
+        response.flush();
+    }
+
+    private void rewinPost(Integer id, PrintWriter response) {
+        // Argomento null
+        if (id == null) {
+            response.println(400);
+            response.println("errore, uno o più argomenti uguali a null");
+            response.flush();
+            return;
+        }
+        // Controllo che ci sia un utente connesso
+        if (usernameLogin == null) {
+            response.println(406);
+            response.println("errore, nessun utente connesso");
+            response.flush();
+            return;
+        }
+        // Recupero il post
+        Post p = posts.get(id);
+        // Controllo se esiste
+        if (p == null) {
+            response.println(416);
+            response.println("errore, post " + id + " non esiste");
+            response.flush();
+            return;
+        }
+        // Controllo se l'utente collegato non segue l'autore del post
+        Vector<String> listFollowing = followings.get(usernameLogin);
+        if (!listFollowing.contains(p.getAuthor())) {
+            // Cerco il post all'interno del feed
+            Vector<Post> postsFollowed;
+            boolean find = false;
+
+            synchronized (listFollowing) {
+                Iterator<String> listFollowingIterator = listFollowing.iterator();
+
+                while (listFollowingIterator.hasNext() && !find) {
+                    // Recupero il blog di ogni followed
+                    postsFollowed = blogs.get(listFollowingIterator.next());
+
+                    synchronized (postsFollowed) {
+                        Iterator<Post> postFollowedIterator = postsFollowed.iterator();
+
+                        while (postFollowedIterator.hasNext() && !find) {
+                            if (postFollowedIterator.next().getId().equals(p.getId())) {
+                                find = true;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (!find) {
+                response.println(417);
+                response.println("post (id = " + id + ") non appartiene al tuo feed");
+                response.flush();
+                return;
+            }
+        }
+        // Inserisco il post nel blog se non presente
+        Vector<Post> blog = blogs.get(usernameLogin);
+
+        synchronized (blog) {
+            if (!blog.contains(p)) {
+                blog.add(p);
+            } else {
+                response.println(418);
+                response.println("post (id = " + id + ") già presente nel blog");
+                response.flush();
+            }
+        }
+
+        // ok
+        response.println(200);
+        response.println("eseguito il rewin del post (id = " + id + ")");
         response.flush();
     }
 }

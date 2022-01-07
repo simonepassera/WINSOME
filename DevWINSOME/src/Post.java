@@ -3,7 +3,7 @@ import com.google.gson.annotations.Expose;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class Post {
-    @Expose private final int id;
+    @Expose private final Integer id;
     @Expose private final String author;
     @Expose private final String title;
     // Variabili non serializzate/deserializzate durante l'invio del post con viewBlog()
@@ -17,7 +17,7 @@ public class Post {
         this.text = text;
     }
 
-    public int getId() {
+    public Integer getId() {
         return id;
     }
 

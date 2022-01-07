@@ -245,6 +245,20 @@ public class ClientMain {
                         if (command.size() < 3) { System.out.println("\033[1m<\033[22m \033[1mpost\033[22m <title [\033[1mmax 20\033[22m]> <content [\033[1mmax 500\033[22m]>"); break; }
                         createPost(command.get(1), command.get(2));
                         break;
+                    case "rewin":
+                        if (command.size() < 2) { System.out.println("\033[1m<\033[22m \033[1mrewin\033[22m <id>"); break; }
+
+                        int id;
+
+                        try {
+                            id = Integer.parseInt(command.get(1));
+                        } catch (NumberFormatException e) {
+                            System.out.println("\033[1m<\033[22m \033[1mrewin\033[22m <id>");
+                            break;
+                        }
+
+                        rewinPost(id);
+                        break;
                     case "exit":
                         exit();
                         break;
@@ -368,6 +382,7 @@ public class ClientMain {
         System.out.println("\033[1m<\033[22m \033[1mblog\033[22m\033[50Gvisualizza la lista dei post nel proprio blog.");
         System.out.println("\033[1m<\033[22m \033[1mshow feed\033[22m\033[50Gmostra il proprio feed.");
         System.out.println("\033[1m<\033[22m \033[1mshow post\033[22m <id>\033[50Gmostra il contenuto del post, i voti positivi e negativi ed i relativi commenti.");
+        System.out.println("\033[1m<\033[22m \033[1mrewin\033[22m <id>\033[50Gpermette di pubblicare nel proprio blog un post presente nel proprio feed.");
         System.out.println("\033[1m<\033[22m \033[1mhelp\033[22m\033[50Gmostra questa lista.");
         System.out.println("\033[1m<\033[22m \033[1mverbose\033[22m\033[50Gabilita la stampa dei codici di risposta dal server.");
         System.out.println("\033[1m<\033[22m \033[1mexit\033[22m\033[50Gtermina il processo.");
@@ -755,6 +770,18 @@ public class ClientMain {
             System.out.println("\033[1m<\033[22m Autore: " + post.getAuthor());
             System.out.println("\033[1m<\033[22m Titolo: " + post.getTitle());
             System.out.println("\033[1m<\033[22m Contenuto: " + post.getText());
+        }
+    }
+
+    private static void rewinPost(int id) {
+        outRequest.println("rewinPost");
+        outRequest.println(id);
+        outRequest.flush();
+
+        try {
+            printResponse();
+        } catch (IOException | NumberFormatException e) {
+            System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
         }
     }
 
