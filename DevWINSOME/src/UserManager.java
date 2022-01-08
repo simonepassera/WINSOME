@@ -626,6 +626,56 @@ public class UserManager implements Runnable {
             response.flush();
             return;
         }
+        // Controllo se l'autore del post non è l'utente connesso
+        if (!p.getAuthor().equals(usernameLogin)) {
+            Vector<String> listFollowing = followings.get(usernameLogin);
+            // Controllo se l'utente collegato non segue l'autore del post
+            if (!listFollowing.contains(p.getAuthor())) {
+                // Cerco il post all'interno del feed
+                Vector<Post> postsFollowed;
+                boolean find = false;
+
+                synchronized (listFollowing) {
+                    Iterator<String> listFollowingIterator = listFollowing.iterator();
+
+                    while (listFollowingIterator.hasNext() && !find) {
+                        // Recupero il blog di ogni followed
+                        postsFollowed = blogs.get(listFollowingIterator.next());
+
+                        synchronized (postsFollowed) {
+                            Iterator<Post> postFollowedIterator = postsFollowed.iterator();
+
+                            while (postFollowedIterator.hasNext() && !find) {
+                                if (postFollowedIterator.next().getId().equals(p.getId())) {
+                                    find = true;
+                                }
+                            }
+                        }
+                    }
+                }
+                // Cerco il post nel blog (post rewin)
+                if (!find) {
+                    Vector<Post> blog = blogs.get(usernameLogin);
+
+                    synchronized (blog) {
+                        Iterator<Post> postIterator = blog.iterator();
+
+                        while (postIterator.hasNext() && !find) {
+                            if (postIterator.next().getId().equals(p.getId())) {
+                                find = true;
+                            }
+                        }
+                    }
+                }
+                // Post non trovato
+                if (!find) {
+                    response.println(417);
+                    response.println("post (id = " + id + ") non appartiene al tuo feed o blog");
+                    response.flush();
+                    return;
+                }
+            }
+        }
 
         response.println(201);
         response.println("invio il post");
@@ -685,7 +735,7 @@ public class UserManager implements Runnable {
                     }
                 }
             }
-
+            // Post non trovato
             if (!find) {
                 response.println(417);
                 response.println("post (id = " + id + ") non appartiene al tuo feed");
