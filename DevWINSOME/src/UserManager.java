@@ -72,7 +72,7 @@ public class UserManager implements Runnable {
         try (PrintWriter response = new PrintWriter(user.getOutputStream());
              BufferedReader request = new BufferedReader(new InputStreamReader(user.getInputStream()))) {
             String command, username, password, title, content;
-            int id = 0;
+            int id = 0, vote;
 
             while (exit) {
                 command = request.readLine();
@@ -125,6 +125,7 @@ public class UserManager implements Runnable {
                             response.println(415);
                             response.println("id post errore di conversione");
                             response.flush();
+                            break;
                         }
 
                         showPost(id, response);
@@ -136,9 +137,31 @@ public class UserManager implements Runnable {
                             response.println(415);
                             response.println("id post errore di conversione");
                             response.flush();
+                            break;
                         }
 
                         rewinPost(id, response);
+                        break;
+                    case "ratePost":
+                        try {
+                            id = Integer.parseInt(request.readLine());
+                        } catch (NumberFormatException fe) {
+                            response.println(415);
+                            response.println("id post errore di conversione");
+                            response.flush();
+                            break;
+                        }
+
+                        try {
+                            vote = Integer.parseInt(request.readLine());
+                        } catch (NumberFormatException fe) {
+                            response.println(415);
+                            response.println("voto errore di conversione");
+                            response.flush();
+                            break;
+                        }
+
+                        ratePost(id, vote, response);
                         break;
                 }
             }
@@ -199,10 +222,10 @@ public class UserManager implements Runnable {
         if (usernameLogin != null) {
             if (usernameLogin.equals(username)) {
                 response.println(405);
-                response.println("c'è un utente già collegato, deve essere prima scollegato");
+                response.println(username + " già collegato");
             } else {
                 response.println(405);
-                response.println(username + " già collegato");
+                response.println("c'è un utente già collegato, deve essere prima scollegato");
             }
 
             response.flush();
@@ -509,7 +532,9 @@ public class UserManager implements Runnable {
             response.flush();
 
             for (Post p : post) {
-                response.println(gsonExpose.toJson(p, postType));
+                synchronized (p) {
+                    response.println(gsonExpose.toJson(p, postType));
+                }
                 response.flush();
             }
         }
@@ -548,7 +573,9 @@ public class UserManager implements Runnable {
 
                     for (Post p : postsFollowed) {
                         // Invio i post nel blog
-                        response.println(gsonExpose.toJson(p, postType));
+                        synchronized (p) {
+                            response.println(gsonExpose.toJson(p, postType));
+                        }
                         response.flush();
                     }
                 }
@@ -682,7 +709,10 @@ public class UserManager implements Runnable {
         response.flush();
 
         // Invio il post
-        response.println(gson.toJson(p, postType));
+        synchronized (p) {
+            response.println(gson.toJson(p, postType));
+        }
+
         response.flush();
     }
 
@@ -698,6 +728,90 @@ public class UserManager implements Runnable {
         if (usernameLogin == null) {
             response.println(406);
             response.println("errore, nessun utente connesso");
+            response.flush();
+            return;
+        }
+        // Recupero il post
+        Post p = posts.get(id);
+        // Controllo se esiste
+        if (p == null) {
+            response.println(416);
+            response.println("errore, post " + id + " non esiste");
+            response.flush();
+            return;
+        }
+
+        // Controllo se l'utente collegato non segue l'autore del post
+        Vector<String> listFollowing = followings.get(usernameLogin);
+        if (!listFollowing.contains(p.getAuthor())) {
+            // Cerco il post all'interno del feed
+            Vector<Post> postsFollowed;
+            boolean find = false;
+
+            synchronized (listFollowing) {
+                Iterator<String> listFollowingIterator = listFollowing.iterator();
+
+                while (listFollowingIterator.hasNext() && !find) {
+                    // Recupero il blog di ogni followed
+                    postsFollowed = blogs.get(listFollowingIterator.next());
+
+                    synchronized (postsFollowed) {
+                        Iterator<Post> postFollowedIterator = postsFollowed.iterator();
+
+                        while (postFollowedIterator.hasNext() && !find) {
+                            if (postFollowedIterator.next().getId().equals(p.getId())) {
+                                    find = true;
+                            }
+                        }
+                    }
+                }
+            }
+            // Post non trovato
+            if (!find) {
+                response.println(417);
+                response.println("post (id = " + id + ") non appartiene al tuo feed");
+                response.flush();
+                return;
+            }
+        }
+        // Inserisco il post nel blog se non presente
+        Vector<Post> blog = blogs.get(usernameLogin);
+
+        synchronized (blog) {
+            if (!blog.contains(p)) {
+                blog.add(p);
+            } else {
+                response.println(418);
+                response.println("post (id = " + id + ") già presente nel blog");
+                response.flush();
+            }
+        }
+
+        // ok
+        response.println(200);
+        response.println("eseguito il rewin del post (id = " + id + ")");
+        response.flush();
+    }
+
+    private void ratePost(Integer id, Integer vote, PrintWriter response) {
+        // Argomenti null
+        if (id == null || vote == null) {
+            response.println(400);
+            response.println("errore, uno o più argomenti uguali a null");
+            response.flush();
+            return;
+        }
+        // Controllo che ci sia un utente connesso
+        if (usernameLogin == null) {
+            response.println(406);
+            response.println("errore, nessun utente connesso");
+            response.flush();
+            return;
+        }
+        // Controllo il voto se è valido
+        if (!vote.equals(1) && !vote.equals(-1)) {
+            response.println(420);
+            response.println("errore, valore del voto [-1, +1]");
             response.flush();
             return;
         }
@@ -743,22 +857,25 @@ public class UserManager implements Runnable {
                 return;
             }
         }
-        // Inserisco il post nel blog se non presente
-        Vector<Post> blog = blogs.get(usernameLogin);
+        // Aggiungo il voto
+        int r;
 
-        synchronized (blog) {
-            if (!blog.contains(p)) {
-                blog.add(p);
-            } else {
-                response.println(418);
-                response.println("post (id = " + id + ") già presente nel blog");
-                response.flush();
-            }
+        if (vote == 1) {
+            r = p.addUpVote(usernameLogin);
+        } else {
+            r = p.addDownVote(usernameLogin);
+        }
+        // Post già votato
+        if (r == 1) {
+            response.println(417);
+            response.println("post (id = " + id + ") già votato");
+            response.flush();
+            return;
         }
 
         // ok
         response.println(200);
-        response.println("eseguito il rewin del post (id = " + id + ")");
+        response.println("post (id = " + id + ") votato");
         response.flush();
     }
 }

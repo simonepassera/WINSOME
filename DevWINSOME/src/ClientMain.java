@@ -109,6 +109,7 @@ public class ClientMain {
             gsonExpose = new GsonBuilder().excludeFieldsWithoutExposeAnnotation().create();
             Pattern p = Pattern.compile("([^\"]\\S*|\".+?\")\\s*");
             Matcher m;
+            int id;
 
             while (true) {
                 System.out.flush();
@@ -220,8 +221,6 @@ public class ClientMain {
                             if (command.get(1).equals("feed")) { showFeed(); break; }
                             if (command.get(1).equals("post")) {
                                 if (command.size() >= 3) {
-                                    int id;
-
                                     try {
                                         id = Integer.parseInt(command.get(2));
                                     } catch (NumberFormatException e) {
@@ -248,8 +247,6 @@ public class ClientMain {
                     case "rewin":
                         if (command.size() < 2) { System.out.println("\033[1m<\033[22m \033[1mrewin\033[22m <id>"); break; }
 
-                        int id;
-
                         try {
                             id = Integer.parseInt(command.get(1));
                         } catch (NumberFormatException e) {
@@ -258,6 +255,30 @@ public class ClientMain {
                         }
 
                         rewinPost(id);
+                        break;
+                    case "rate":
+                        if (command.size() < 3) { System.out.println("\033[1m<\033[22m \033[1mrate\033[22m <id> <vote [\033[1m-1, +1\033[22m]>"); break; }
+
+                        try {
+                            id = Integer.parseInt(command.get(1));
+                        } catch (NumberFormatException e) {
+                            System.out.println("\033[1m<\033[22m \033[1mrate\033[22m <id> <vote [\033[1m-1, +1\033[22m]>");
+                            break;
+                        }
+
+                        if (command.get(2).equals("+1"))
+                        {
+                            ratePost(id, 1);
+                            break;
+                        }
+
+                        if (command.get(2).equals("-1"))
+                        {
+                            ratePost(id, -1);
+                            break;
+                        }
+
+                        System.out.println("\033[1m<\033[22m \033[1mrate\033[22m <id> <vote [\033[1m-1, +1\033[22m]>");
                         break;
                     case "exit":
                         exit();
@@ -383,6 +404,7 @@ public class ClientMain {
         System.out.println("\033[1m<\033[22m \033[1mshow feed\033[22m\033[50Gmostra il proprio feed.");
         System.out.println("\033[1m<\033[22m \033[1mshow post\033[22m <id>\033[50Gmostra il contenuto del post, i voti positivi e negativi ed i relativi commenti.");
         System.out.println("\033[1m<\033[22m \033[1mrewin\033[22m <id>\033[50Gpermette di pubblicare nel proprio blog un post presente nel proprio feed.");
+        System.out.println("\033[1m<\033[22m \033[1mrate\033[22m <id> <vote>\033[50Gpermette di assegnare un voto positivo o negativo ad un post. (voto positivo +1, negativo -1)");
         System.out.println("\033[1m<\033[22m \033[1mhelp\033[22m\033[50Gmostra questa lista.");
         System.out.println("\033[1m<\033[22m \033[1mverbose\033[22m\033[50Gabilita la stampa dei codici di risposta dal server.");
         System.out.println("\033[1m<\033[22m \033[1mexit\033[22m\033[50Gtermina il processo.");
@@ -770,12 +792,26 @@ public class ClientMain {
             System.out.println("\033[1m<\033[22m Autore: " + post.getAuthor());
             System.out.println("\033[1m<\033[22m Titolo: " + post.getTitle());
             System.out.println("\033[1m<\033[22m Contenuto: " + post.getText());
+            System.out.println("\033[1m<\033[22m Voti: " + post.getUpvote() + " positivi, " + post.getDownVote() + " negativi");
         }
     }
 
     private static void rewinPost(int id) {
         outRequest.println("rewinPost");
         outRequest.println(id);
+        outRequest.flush();
+
+        try {
+            printResponse();
+        } catch (IOException | NumberFormatException e) {
+            System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
+        }
+    }
+
+    private static void ratePost(int id, int vote) {
+        outRequest.println("ratePost");
+        outRequest.println(id);
+        outRequest.println(vote);
         outRequest.flush();
 
         try {
