@@ -163,6 +163,19 @@ public class UserManager implements Runnable {
 
                         ratePost(id, vote, response);
                         break;
+                    case "addComment":
+                        try {
+                            id = Integer.parseInt(request.readLine());
+                        } catch (NumberFormatException fe) {
+                            response.println(415);
+                            response.println("id post errore di conversione");
+                            response.flush();
+                            break;
+                        }
+
+                        content = request.readLine();
+                        addComment(id, content, response);
+                        break;
                 }
             }
         } catch (IOException e) {
@@ -741,12 +754,13 @@ public class UserManager implements Runnable {
             return;
         }
 
+        boolean find = false;
+
         // Controllo se l'utente collegato non segue l'autore del post
         Vector<String> listFollowing = followings.get(usernameLogin);
         if (!listFollowing.contains(p.getAuthor())) {
             // Cerco il post all'interno del feed
             Vector<Post> postsFollowed;
-            boolean find = false;
 
             synchronized (listFollowing) {
                 Iterator<String> listFollowingIterator = listFollowing.iterator();
@@ -776,14 +790,23 @@ public class UserManager implements Runnable {
         }
         // Inserisco il post nel blog se non presente
         Vector<Post> blog = blogs.get(usernameLogin);
+        Iterator<Post> blogIterator = blog.iterator();
+        find = false;
 
         synchronized (blog) {
-            if (!blog.contains(p)) {
+            while (blogIterator.hasNext() && !find) {
+                    if (blogIterator.next().getId().equals(p.getId())) {
+                        find = true;
+                    }
+            }
+
+            if (find) {
                 blog.add(p);
             } else {
                 response.println(418);
                 response.println("post (id = " + id + ") già presente nel blog");
                 response.flush();
+                return;
             }
         }
 
@@ -876,6 +899,79 @@ public class UserManager implements Runnable {
         // ok
         response.println(200);
         response.println("post (id = " + id + ") votato");
+        response.flush();
+    }
+
+    private void addComment(Integer id, String comment, PrintWriter response) {
+        // Argomenti null
+        if (id == null || comment == null) {
+            response.println(400);
+            response.println("errore, uno o più argomenti uguali a null");
+            response.flush();
+            return;
+        }
+        // Controllo che ci sia un utente connesso
+        if (usernameLogin == null) {
+            response.println(406);
+            response.println("errore, nessun utente connesso");
+            response.flush();
+            return;
+        }
+        // Controllo la lunghezza del commento
+        if (comment.length() > 500) {
+            response.println(422);
+            response.println("errore, commento troppo lungo [max 500]");
+            response.flush();
+            return;
+        }
+        // Recupero il post
+        Post p = posts.get(id);
+        // Controllo se esiste
+        if (p == null) {
+            response.println(416);
+            response.println("errore, post " + id + " non esiste");
+            response.flush();
+            return;
+        }
+        // Controllo se l'utente collegato non segue l'autore del post
+        Vector<String> listFollowing = followings.get(usernameLogin);
+        if (!listFollowing.contains(p.getAuthor())) {
+            // Cerco il post all'interno del feed
+            Vector<Post> postsFollowed;
+            boolean find = false;
+
+            synchronized (listFollowing) {
+                Iterator<String> listFollowingIterator = listFollowing.iterator();
+
+                while (listFollowingIterator.hasNext() && !find) {
+                    // Recupero il blog di ogni followed
+                    postsFollowed = blogs.get(listFollowingIterator.next());
+
+                    synchronized (postsFollowed) {
+                        Iterator<Post> postFollowedIterator = postsFollowed.iterator();
+
+                        while (postFollowedIterator.hasNext() && !find) {
+                            if (postFollowedIterator.next().getId().equals(p.getId())) {
+                                find = true;
+                            }
+                        }
+                    }
+                }
+            }
+            // Post non trovato
+            if (!find) {
+                response.println(417);
+                response.println("post (id = " + id + ") non appartiene al tuo feed");
+                response.flush();
+                return;
+            }
+        }
+        // Aggiungo il commento
+        p.addComment(usernameLogin, comment);
+
+        // ok
+        response.println(200);
+        response.println("commento aggiunto");
         response.flush();
     }
 }

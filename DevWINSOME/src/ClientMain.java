@@ -280,6 +280,18 @@ public class ClientMain {
 
                         System.out.println("\033[1m<\033[22m \033[1mrate\033[22m <id> <vote [\033[1m-1, +1\033[22m]>");
                         break;
+                    case "comment":
+                        if (command.size() < 3) { System.out.println("\033[1m<\033[22m \033[1mcomment\033[22m <id> <comment [\033[1mmax 500\033[22m]>"); break; }
+
+                        try {
+                            id = Integer.parseInt(command.get(1));
+                        } catch (NumberFormatException e) {
+                            System.out.println("\033[1m<\033[22m \033[1mcomment\033[22m <id> <comment [\033[1mmax 500\033[22m]>");
+                            break;
+                        }
+
+                        addComment(id, command.get(2));
+                        break;
                     case "exit":
                         exit();
                         break;
@@ -405,6 +417,7 @@ public class ClientMain {
         System.out.println("\033[1m<\033[22m \033[1mshow post\033[22m <id>\033[50Gmostra il contenuto del post, i voti positivi e negativi ed i relativi commenti.");
         System.out.println("\033[1m<\033[22m \033[1mrewin\033[22m <id>\033[50Gpermette di pubblicare nel proprio blog un post presente nel proprio feed.");
         System.out.println("\033[1m<\033[22m \033[1mrate\033[22m <id> <vote>\033[50Gpermette di assegnare un voto positivo o negativo ad un post. (voto positivo +1, negativo -1)");
+        System.out.println("\033[1m<\033[22m \033[1mcomment\033[22m <id> <comment>\033[50Gpermette di aggiungere un commento ad un post.");
         System.out.println("\033[1m<\033[22m \033[1mhelp\033[22m\033[50Gmostra questa lista.");
         System.out.println("\033[1m<\033[22m \033[1mverbose\033[22m\033[50Gabilita la stampa dei codici di risposta dal server.");
         System.out.println("\033[1m<\033[22m \033[1mexit\033[22m\033[50Gtermina il processo.");
@@ -793,6 +806,20 @@ public class ClientMain {
             System.out.println("\033[1m<\033[22m Titolo: " + post.getTitle());
             System.out.println("\033[1m<\033[22m Contenuto: " + post.getText());
             System.out.println("\033[1m<\033[22m Voti: " + post.getUpvote() + " positivi, " + post.getDownVote() + " negativi");
+
+            ArrayList<String> comments = post.getComments();
+
+            System.out.print("\033[1m<\033[22m Commenti:");
+
+            if (comments.size() == 0)  System.out.println(" 0");
+            else {
+                System.out.println();
+                int index;
+                for (String comment : comments) {
+                    index = comment.indexOf(" ");
+                    System.out.println("\033[1m<\033[22m   " + comment.substring(0, index) + ":" + comment.substring(index));
+                }
+            }
         }
     }
 
@@ -821,6 +848,19 @@ public class ClientMain {
         }
     }
 
+    private static void addComment(int id, String comment) {
+        outRequest.println("addComment");
+        outRequest.println(id);
+        outRequest.println(comment);
+        outRequest.flush();
+
+        try {
+            printResponse();
+        } catch (IOException | NumberFormatException e) {
+            System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
+        }
+    }
+
     private static int printResponse() throws NumberFormatException, IOException {
         int code;
         String message;
@@ -830,6 +870,8 @@ public class ClientMain {
 
         if (verbose) System.out.println("\033[1m<\033[22m [\033[1m" + code + "\033[22m] " + message);
         else System.out.println("\033[1m<\033[22m " + message);
+
+        System.out.flush();
 
         return code;
     }
