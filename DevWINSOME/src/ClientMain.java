@@ -12,6 +12,7 @@ import java.rmi.*;
 import java.rmi.registry.*;
 import java.security.*;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -46,6 +47,8 @@ public class ClientMain {
     private static Gson gsonExpose;
     // Username connesso
     private static String usernameConnected = null;
+    // Flag calcolo ricompense avvenuto
+    private static AtomicBoolean reward = null;
 
     public static void main(String[] args) {
         // Controllo se esiste il file di configurazione
@@ -95,6 +98,22 @@ public class ClientMain {
             // Inizializzo gli stream di comunicazione
             outRequest = new PrintWriter(winsomeServer.getOutputStream());
             inResponse = new BufferedReader(new InputStreamReader(winsomeServer.getInputStream()));
+            // Ricevo dal server ip e porta di multicast su cui ricevere aggiornamenti relativo calcolo delle ricompense
+            InetAddress multicastAddress = null;
+
+            try {
+                multicastAddress = InetAddress.getByName(inResponse.readLine());
+                if (!multicastAddress.isMulticastAddress()) throw new UnknownHostException();
+            } catch (UnknownHostException e) {
+                System.err.println("Indirizzo di multicast invalido");
+                System.exit(1);
+            }
+
+            int multicastPort = Integer.parseInt(inResponse.readLine());
+            reward = new AtomicBoolean(false);
+            // Avvio il thread che riceve aggiornamenti multicast
+            Thread threadWalletUpdate = new Thread(new WalletUpdate(multicastAddress, multicastPort, reward));
+            threadWalletUpdate.start();
             // Scanner per il parsing da linea di comando
             Scanner input = new Scanner(System.in);
             String line;
@@ -292,6 +311,11 @@ public class ClientMain {
 
                         addComment(id, command.get(2));
                         break;
+                    case "wallet":
+                        if (command.size() == 1) { wallet(); break; }
+                        if (command.get(1).equals("btc")) walletBtc();
+                        else System.out.println("\033[1m<\033[22m \033[1mwallet btc\033[22m");
+                        break;
                     case "exit":
                         exit();
                         break;
@@ -395,7 +419,7 @@ public class ClientMain {
         } catch (FileNotFoundException e) {
             System.err.println("File di configurazione: " + e.getMessage());
             System.exit(1);
-        } catch (IOException e) {
+        } catch (NumberFormatException | IOException e) {
             System.err.println(e.getMessage());
             System.exit(1);
         }
@@ -418,6 +442,8 @@ public class ClientMain {
         System.out.println("\033[1m<\033[22m \033[1mrewin\033[22m <id>\033[50Gpermette di pubblicare nel proprio blog un post presente nel proprio feed.");
         System.out.println("\033[1m<\033[22m \033[1mrate\033[22m <id> <vote>\033[50Gpermette di assegnare un voto positivo o negativo ad un post. (voto positivo +1, negativo -1)");
         System.out.println("\033[1m<\033[22m \033[1mcomment\033[22m <id> <comment>\033[50Gpermette di aggiungere un commento ad un post.");
+        System.out.println("\033[1m<\033[22m \033[1mwallet\033[22m\033[50Gmostra il valore del proprio portafoglio, e le relative transazioni.");
+        System.out.println("\033[1m<\033[22m \033[1mwallet btc\033[22m\033[50Gpermette la conversione del proprio portafoglio in bitcoin, e mostra il valore.");
         System.out.println("\033[1m<\033[22m \033[1mhelp\033[22m\033[50Gmostra questa lista.");
         System.out.println("\033[1m<\033[22m \033[1mverbose\033[22m\033[50Gabilita la stampa dei codici di risposta dal server.");
         System.out.println("\033[1m<\033[22m \033[1mexit\033[22m\033[50Gtermina il processo.");
@@ -859,6 +885,14 @@ public class ClientMain {
         } catch (IOException | NumberFormatException e) {
             System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
         }
+    }
+
+    private static void wallet() {
+
+    }
+
+    private static void walletBtc() {
+
     }
 
     private static int printResponse() throws NumberFormatException, IOException {
