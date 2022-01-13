@@ -6,7 +6,11 @@ import com.google.gson.reflect.TypeToken;
 
 import java.io.*;
 import java.lang.reflect.Type;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.rmi.RemoteException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -18,6 +22,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class UserManager implements Runnable {
     // Socket per la connessione persistente con il client
     private final Socket user;
+    // Ip e porta gruppo di multicast
+    private final String multicastAddress;
+    private final int multicastPort;
     // Stringa che contiene lo username se l'utente ha effettuato il login, oppure null in caso contrario
     private String usernameLogin = null;
     // Mappa (username, password)
@@ -50,7 +57,7 @@ public class UserManager implements Runnable {
     Type postType;
 
 
-    public UserManager(Socket user, ConcurrentHashMap<String, String> users, ConcurrentHashMap<String, ArrayList<String>> tags, ConcurrentHashMap<String, NotifyFollowersInterface> stubs, ConcurrentHashMap<String, Vector<String>> followers, ConcurrentHashMap<String, Vector<String>> followings, ConcurrentHashMap<String, Vector<Post>> blogs, ConcurrentHashMap<Integer, Post> posts, Vector<String> connectedUsers, AtomicInteger idGenerator) {
+    public UserManager(Socket user, ConcurrentHashMap<String, String> users, ConcurrentHashMap<String, ArrayList<String>> tags, ConcurrentHashMap<String, NotifyFollowersInterface> stubs, ConcurrentHashMap<String, Vector<String>> followers, ConcurrentHashMap<String, Vector<String>> followings, ConcurrentHashMap<String, Vector<Post>> blogs, ConcurrentHashMap<Integer, Post> posts, Vector<String> connectedUsers, AtomicInteger idGenerator, String multicastAddress, int multicastPort) {
         this.user = user;
         this.users = users;
         this.tags = tags;
@@ -61,6 +68,8 @@ public class UserManager implements Runnable {
         this.posts = posts;
         this.connectedUsers = connectedUsers;
         this.idGenerator = idGenerator;
+        this.multicastAddress = multicastAddress;
+        this.multicastPort = multicastPort;
         gson = new Gson();
         gsonExpose = new GsonBuilder().excludeFieldsWithoutExposeAnnotation().create();
         CodeReturnType = new TypeToken<CodeReturn>(){}.getType();
@@ -71,6 +80,11 @@ public class UserManager implements Runnable {
     public void run() {
         try (PrintWriter response = new PrintWriter(user.getOutputStream());
              BufferedReader request = new BufferedReader(new InputStreamReader(user.getInputStream()))) {
+            // Comunico ip e porta relative al gruppo di multicast
+            response.println(multicastAddress);
+            response.println(multicastPort);
+            response.flush();
+
             String command, username, password, title, content;
             int id = 0, vote;
 

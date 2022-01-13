@@ -112,7 +112,8 @@ public class ClientMain {
             int multicastPort = Integer.parseInt(inResponse.readLine());
             reward = new AtomicBoolean(false);
             // Avvio il thread che riceve aggiornamenti multicast
-            Thread threadWalletUpdate = new Thread(new WalletUpdate(multicastAddress, multicastPort, reward));
+            WalletUpdate walletUpdate = new WalletUpdate(multicastAddress, multicastPort, reward);
+            Thread threadWalletUpdate = new Thread(walletUpdate);
             threadWalletUpdate.start();
             // Scanner per il parsing da linea di comando
             Scanner input = new Scanner(System.in);
@@ -131,10 +132,15 @@ public class ClientMain {
             int id;
 
             while (true) {
+                if (reward.compareAndSet(true, false)) System.out.println("\033[1m< NOTIFICA : eseguito il calcolo delle ricompense (comando 'wallet' per info)\033[22m");
                 System.out.flush();
                 System.out.print("> ");
 
-                while((line = input.nextLine()).length() == 0) { System.out.flush(); System.out.print("> "); }
+                while((line = input.nextLine()).length() == 0) {
+                    if (reward.compareAndSet(true, false)) System.out.println("\033[1m< NOTIFICA : eseguito il calcolo delle ricompense (comando 'wallet' per info)\033[22m");
+                    System.out.flush();
+                    System.out.print("> ");
+                }
 
                 m = p.matcher(line);
                 command.clear();
@@ -317,7 +323,7 @@ public class ClientMain {
                         else System.out.println("\033[1m<\033[22m \033[1mwallet btc\033[22m");
                         break;
                     case "exit":
-                        exit();
+                        if (exit(walletUpdate, threadWalletUpdate) == 0) return;
                         break;
                     default: System.out.println("\033[1m<\033[22m comando non trovato (Prova 'help' per maggiori informazioni)");
                 }
@@ -449,17 +455,23 @@ public class ClientMain {
         System.out.println("\033[1m<\033[22m \033[1mexit\033[22m\033[50Gtermina il processo.");
     }
 
-    private static void exit() {
+    private static int exit(WalletUpdate walletUpdate, Thread threadWalletUpdate) {
         outRequest.println("exit");
         outRequest.flush();
 
         try {
             if (printResponse() == 200) {
-                System.exit(0);
+                walletUpdate.exit();
+                try {
+                    threadWalletUpdate.join();
+                } catch (InterruptedException ignore) {}
+                return 0;
             }
         } catch (IOException | NumberFormatException e) {
             System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
         }
+
+        return 1;
     }
 
     private static void register(String username, String password, ArrayList<String> tags) {

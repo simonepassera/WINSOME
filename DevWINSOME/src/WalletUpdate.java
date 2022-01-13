@@ -6,9 +6,10 @@ import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class WalletUpdate implements Runnable {
-    InetAddress ip;
-    int port;
-    AtomicBoolean notify;
+    private InetAddress ip;
+    private int port;
+    private AtomicBoolean notify;
+    private MulticastSocket ms;
 
     public WalletUpdate(InetAddress ip, int port, AtomicBoolean notify) {
         this.ip = ip;
@@ -18,19 +19,25 @@ public class WalletUpdate implements Runnable {
 
     @Override
     public void run() {
-        try (MulticastSocket ms = new MulticastSocket(port)){
+        try {
+            ms = new MulticastSocket(port);
             ms.joinGroup(ip);
 
-            byte[] buf = new byte[128];
+            byte[] buf = new byte[64];
             DatagramPacket rewardMessage = new DatagramPacket(buf, buf.length);
 
             while (true) {
                 ms.receive(rewardMessage);
-                String message = new String(rewardMessage.getData(), StandardCharsets.US_ASCII);
+                String message = new String(rewardMessage.getData(), 0, rewardMessage.getLength(), StandardCharsets.US_ASCII);
                 if (message.equals("WINSOME UPDATE WALLETS")) notify.set(true);
             }
-        } catch (IOException e) {
-            System.err.println(e.getMessage());
-        }
+        } catch (IOException InvokeExit) {}
+    }
+
+    public void exit() {
+        try {
+            ms.leaveGroup(ip);
+            ms.close();
+        } catch (IOException ignore) {}
     }
 }

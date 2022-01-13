@@ -94,7 +94,7 @@ public class ServerMain {
             System.out.println("Server avviato ...");
 
             while (true) {
-                pool.execute(new UserManager(listenSocket.accept(), users, tags, stubs, followers, followings, blogs, posts, connectedUsers, idGenerator));
+                pool.execute(new UserManager(listenSocket.accept(), users, tags, stubs, followers, followings, blogs, posts, connectedUsers, idGenerator, MULTICAST_ADDRESS.getHostAddress(), MULTICAST_PORT));
             }
         } catch (IOException e) {
             e.printStackTrace();
