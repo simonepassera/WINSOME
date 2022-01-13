@@ -900,7 +900,49 @@ public class ClientMain {
     }
 
     private static void wallet() {
+        outRequest.println("getWallet");
+        outRequest.flush();
 
+        int code;
+        String message;
+
+        try {
+            code = Integer.parseInt(inResponse.readLine());
+            message = inResponse.readLine();
+        } catch (IOException | NumberFormatException e) {
+            System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
+            return;
+        }
+
+        if (code != 201){
+            if (verbose) System.out.println("\033[1m<\033[22m [\033[1m" + code + "\033[22m] " + message);
+            else System.out.println("\033[1m<\033[22m " + message);
+        } else {
+            Wallet wallet;
+            // Tipo wallet
+            Type walletType = new TypeToken<Wallet>(){}.getType();
+
+            try {
+                wallet = gson.fromJson(inResponse.readLine(), walletType);
+            } catch (IOException e) {
+                System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
+                return;
+            }
+
+            System.out.println("\033[1m<\033[22m Valore: " + wallet.getWincoin() + " Wincoin");
+
+            ArrayList<String> transactions = wallet.getTransactions();
+
+            System.out.print("\033[1m<\033[22m Transazioni:");
+
+            if (transactions.size() == 0)  System.out.println(" 0");
+            else {
+                System.out.println();
+                for (String activity : transactions) {
+                    System.out.println("\033[1m<\033[22m   " + activity);
+                }
+            }
+        }
     }
 
     private static void walletBtc() {

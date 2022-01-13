@@ -22,12 +22,14 @@ public class WinsomeRMI extends UnicastRemoteObject implements WinsomeRMIService
     private final ConcurrentHashMap<String, Vector<String>> followings;
     // Mappa (username, blog)
     private final ConcurrentHashMap<String, Vector<Post>> blogs;
+    // Mappa (username, wallet)
+    private final ConcurrentHashMap<String, Wallet> wallets;
     // Tipo dell'oggetto restituito
     Type CodeReturnType;
     // Oggetto gson
     Gson gson;
 
-    public WinsomeRMI(ConcurrentHashMap<String, String> users, ConcurrentHashMap<String, ArrayList<String>> tags, ConcurrentHashMap<String, NotifyFollowersInterface> stubs, ConcurrentHashMap<String, Vector<String>> followers, ConcurrentHashMap<String, Vector<String>> followings, ConcurrentHashMap<String, Vector<Post>> blogs) throws RemoteException {
+    public WinsomeRMI(ConcurrentHashMap<String, String> users, ConcurrentHashMap<String, ArrayList<String>> tags, ConcurrentHashMap<String, NotifyFollowersInterface> stubs, ConcurrentHashMap<String, Vector<String>> followers, ConcurrentHashMap<String, Vector<String>> followings, ConcurrentHashMap<String, Vector<Post>> blogs, ConcurrentHashMap<String, Wallet> wallets) throws RemoteException {
         super();
 
         this.users = users;
@@ -36,6 +38,7 @@ public class WinsomeRMI extends UnicastRemoteObject implements WinsomeRMIService
         this.followers = followers;
         this.followings = followings;
         this.blogs = blogs;
+        this.wallets = wallets;
         CodeReturnType = new TypeToken<CodeReturn>(){}.getType();
         gson = new Gson();
     }
@@ -75,19 +78,23 @@ public class WinsomeRMI extends UnicastRemoteObject implements WinsomeRMIService
                 synchronized (followings) {
                     synchronized (followers) {
                         synchronized (blogs) {
-                            // Inserisco username e password se l'utente non esiste
+                            synchronized (wallets) {
+                                // Inserisco username e password se l'utente non esiste
 
-                            if (users.putIfAbsent(username, password) == null) {
-                                // Inserisco i tag
-                                tags.put(username, tagsList);
-                                // Inizializzo la lista dei following
-                                followings.put(username, new Vector<>());
-                                // Inizializzo la lista dei followers
-                                followers.put(username, new Vector<>());
-                                // Inizializzo il blog
-                                blogs.put(username, new Vector<>());
+                                if (users.putIfAbsent(username, password) == null) {
+                                    // Inserisco i tag
+                                    tags.put(username, tagsList);
+                                    // Inizializzo la lista dei following
+                                    followings.put(username, new Vector<>());
+                                    // Inizializzo la lista dei followers
+                                    followers.put(username, new Vector<>());
+                                    // Inizializzo il blog
+                                    blogs.put(username, new Vector<>());
+                                    // Inizializzo il wallet
+                                    wallets.put(username, new Wallet());
 
-                                insertUsers = true;
+                                    insertUsers = true;
+                                }
                             }
                         }
                     }

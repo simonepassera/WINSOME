@@ -6,16 +6,9 @@ import com.google.gson.reflect.TypeToken;
 
 import java.io.*;
 import java.lang.reflect.Type;
-import java.net.DatagramPacket;
-import java.net.DatagramSocket;
-import java.net.InetAddress;
 import java.net.Socket;
-import java.nio.charset.StandardCharsets;
 import java.rmi.RemoteException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Vector;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -41,6 +34,8 @@ public class UserManager implements Runnable {
     private final ConcurrentHashMap<String, Vector<Post>> blogs;
     // Mappa (idPost, post)
     private final ConcurrentHashMap<Integer, Post> posts;
+    // Mappa (username, wallet)
+    private final ConcurrentHashMap<String, Wallet> wallets;
     // Lista degli utenti connessi
     private final Vector<String> connectedUsers;
     // Generatore id per un post
@@ -55,9 +50,10 @@ public class UserManager implements Runnable {
     Type CodeReturnType;
     // Tipo post
     Type postType;
+    // Tipo walllet
+    Type walletType;
 
-
-    public UserManager(Socket user, ConcurrentHashMap<String, String> users, ConcurrentHashMap<String, ArrayList<String>> tags, ConcurrentHashMap<String, NotifyFollowersInterface> stubs, ConcurrentHashMap<String, Vector<String>> followers, ConcurrentHashMap<String, Vector<String>> followings, ConcurrentHashMap<String, Vector<Post>> blogs, ConcurrentHashMap<Integer, Post> posts, Vector<String> connectedUsers, AtomicInteger idGenerator, String multicastAddress, int multicastPort) {
+    public UserManager(Socket user, ConcurrentHashMap<String, String> users, ConcurrentHashMap<String, ArrayList<String>> tags, ConcurrentHashMap<String, NotifyFollowersInterface> stubs, ConcurrentHashMap<String, Vector<String>> followers, ConcurrentHashMap<String, Vector<String>> followings, ConcurrentHashMap<String, Vector<Post>> blogs, ConcurrentHashMap<Integer, Post> posts, ConcurrentHashMap<String, Wallet> wallets, Vector<String> connectedUsers, AtomicInteger idGenerator, String multicastAddress, int multicastPort) {
         this.user = user;
         this.users = users;
         this.tags = tags;
@@ -66,6 +62,7 @@ public class UserManager implements Runnable {
         this.followings = followings;
         this.blogs = blogs;
         this.posts = posts;
+        this.wallets = wallets;
         this.connectedUsers = connectedUsers;
         this.idGenerator = idGenerator;
         this.multicastAddress = multicastAddress;
@@ -74,6 +71,7 @@ public class UserManager implements Runnable {
         gsonExpose = new GsonBuilder().excludeFieldsWithoutExposeAnnotation().create();
         CodeReturnType = new TypeToken<CodeReturn>(){}.getType();
         postType = new TypeToken<Post>() {}.getType();
+        walletType = new TypeToken<Wallet>() {}.getType();
     }
 
     @Override
@@ -189,6 +187,9 @@ public class UserManager implements Runnable {
 
                         content = request.readLine();
                         addComment(id, content, response);
+                        break;
+                    case "getWallet":
+                        getWallet(response);
                         break;
                 }
             }
@@ -986,6 +987,29 @@ public class UserManager implements Runnable {
         // ok
         response.println(200);
         response.println("commento aggiunto");
+        response.flush();
+    }
+
+    private void getWallet(PrintWriter response) {
+        // Controllo che ci sia un utente connesso
+        if (usernameLogin == null) {
+            response.println(406);
+            response.println("errore, nessun utente connesso");
+            response.flush();
+            return;
+        }
+        // Recupero il portafoglio
+        Wallet wallet = wallets.get(usernameLogin);
+
+        response.println(201);
+        response.println("invio il wallet");
+        response.flush();
+
+        // Invio il portafoglio
+        synchronized (wallet) {
+            response.println(gson.toJson(wallet, walletType));
+        }
+
         response.flush();
     }
 }

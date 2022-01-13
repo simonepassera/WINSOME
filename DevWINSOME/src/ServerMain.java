@@ -18,6 +18,8 @@ public class ServerMain {
     private static int MULTICAST_PORT;
     // Porta del registry
     private static int REGISTRY_PORT;
+    // Percentuale ricompensa autore
+    private static int REWARD_AUTHOR;
     // Mappa (username, password)
     private static ConcurrentHashMap<String, String> users;
     // Mappa (username, tags)
@@ -32,6 +34,8 @@ public class ServerMain {
     private static ConcurrentHashMap<String, Vector<Post>> blogs;
     // Mappa (idPost, post)
     private static ConcurrentHashMap<Integer, Post> posts;
+    // Mappa (username, wallet)
+    private static ConcurrentHashMap<String, Wallet> wallets;
     // Lista degli utenti connessi
     private static Vector<String> connectedUsers;
     // Generatore id per un post
@@ -66,6 +70,7 @@ public class ServerMain {
         followings = new ConcurrentHashMap<>();
         blogs = new ConcurrentHashMap<>();
         posts = new ConcurrentHashMap<>();
+        wallets = new ConcurrentHashMap<>();
         connectedUsers = new Vector<>();
         idGenerator = new AtomicInteger(9);
 
@@ -73,7 +78,7 @@ public class ServerMain {
 
         // Creo ed esporto l'oggetto remoto
         try {
-            rmiServices = new WinsomeRMI(users, tags, stubs, followers, followings, blogs);
+            rmiServices = new WinsomeRMI(users, tags, stubs, followers, followings, blogs, wallets);
         } catch (RemoteException e) {
             System.err.println("Creazione dell'oggeto remoto: " + e.getMessage());
             System.exit(1);
@@ -94,7 +99,7 @@ public class ServerMain {
             System.out.println("Server avviato ...");
 
             while (true) {
-                pool.execute(new UserManager(listenSocket.accept(), users, tags, stubs, followers, followings, blogs, posts, connectedUsers, idGenerator, MULTICAST_ADDRESS.getHostAddress(), MULTICAST_PORT));
+                pool.execute(new UserManager(listenSocket.accept(), users, tags, stubs, followers, followings, blogs, posts, wallets, connectedUsers, idGenerator, MULTICAST_ADDRESS.getHostAddress(), MULTICAST_PORT));
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -109,7 +114,7 @@ public class ServerMain {
             String line;
             String[] values;
             // Array per ricordare le stringhe di configurazione incontrate
-            int[] stringSet = new int[4];
+            int[] stringSet = new int[5];
 
             // Leggo una linea
             while ((line = configFile.readLine()) != null) {
@@ -167,6 +172,17 @@ public class ServerMain {
                         }
 
                         stringSet[3] = 1;
+                        break;
+                    case "REWARD_AUTHOR":
+                        try {
+                            REWARD_AUTHOR = Integer.parseInt(values[1].trim());
+                            if (REWARD_AUTHOR < 0 || REWARD_AUTHOR > 100) throw new NumberFormatException();
+                        } catch (NumberFormatException e) {
+                            System.err.println("File di configurazione: REWARD_AUTHOR -> valore invalido");
+                            System.exit(1);
+                        }
+
+                        stringSet[4] = 1;
                         break;
                 }
             }
