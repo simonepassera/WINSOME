@@ -7,6 +7,7 @@ import com.google.gson.reflect.TypeToken;
 import java.io.*;
 import java.lang.reflect.Type;
 import java.net.Socket;
+import java.net.URL;
 import java.rmi.RemoteException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -202,6 +203,9 @@ public class UserManager implements Runnable {
                         break;
                     case "getWallet":
                         getWallet(response);
+                        break;
+                    case "getWalletBtc":
+                        getWalletBtc(response);
                         break;
                 }
             }
@@ -1074,5 +1078,47 @@ public class UserManager implements Runnable {
         }
 
         response.flush();
+    }
+
+    private void getWalletBtc(PrintWriter response) {
+        // Controllo che ci sia un utente connesso
+        if (usernameLogin == null) {
+            response.println(406);
+            response.println("errore, nessun utente connesso");
+            response.flush();
+            return;
+        }
+
+        // Recupero il portafoglio
+        Wallet wallet = wallets.get(usernameLogin);
+        double wincoin = wallet.getWincoin();
+
+        InputStream inStreamURL = null;
+
+        try {
+            URL randomSiteURL = new URL("https://www.random.org/decimal-fractions/?num=1&dec=6&col=1&format=plain&rnd=new");
+            inStreamURL = randomSiteURL.openStream();
+
+            byte[] decimalByte = inStreamURL.readAllBytes();
+            String decimalString = new String(decimalByte);
+            double exchangeRate = Double.parseDouble(decimalString);
+
+            response.println(201);
+            response.println("invio il valore convertito");
+            response.flush();
+
+            double btc = wincoin * exchangeRate;
+
+            response.println(btc);
+            response.flush();
+        } catch (NumberFormatException | IOException e) {
+            response.println(502);
+            response.println("errore, conversione non riuscita");
+            response.flush();
+        }
+
+        try {
+            inStreamURL.close();
+        } catch (NullPointerException | IOException ignore) {}
     }
 }

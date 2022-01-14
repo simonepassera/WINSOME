@@ -462,7 +462,7 @@ public class ClientMain {
         System.out.println("\033[1m<\033[22m \033[1mrate\033[22m <id> <vote>\033[50Gpermette di assegnare un voto positivo o negativo ad un post. (voto positivo +1, negativo -1)");
         System.out.println("\033[1m<\033[22m \033[1mcomment\033[22m <id> <comment>\033[50Gpermette di aggiungere un commento ad un post.");
         System.out.println("\033[1m<\033[22m \033[1mwallet\033[22m\033[50Gmostra il valore del proprio portafoglio, e le relative transazioni.");
-        System.out.println("\033[1m<\033[22m \033[1mwallet btc\033[22m\033[50Gpermette la conversione del proprio portafoglio in bitcoin, e mostra il valore.");
+        System.out.println("\033[1m<\033[22m \033[1mwallet btc\033[22m\033[50Gvisualizza il valore del proprio portafoglio in bitcoin.");
         System.out.println("\033[1m<\033[22m \033[1mhelp\033[22m\033[50Gmostra questa lista.");
         System.out.println("\033[1m<\033[22m \033[1mverbose\033[22m\033[50Gabilita la stampa dei codici di risposta dal server.");
         System.out.println("\033[1m<\033[22m \033[1mexit\033[22m\033[50Gtermina il processo.");
@@ -971,7 +971,35 @@ public class ClientMain {
     }
 
     private static void walletBtc() {
+        outRequest.println("getWalletBtc");
+        outRequest.flush();
 
+        int code;
+        String message;
+
+        try {
+            code = Integer.parseInt(inResponse.readLine());
+            message = inResponse.readLine();
+        } catch (IOException | NumberFormatException e) {
+            System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
+            return;
+        }
+
+        if (code != 201){
+            if (verbose) System.out.println("\033[1m<\033[22m [\033[1m" + code + "\033[22m] " + message);
+            else System.out.println("\033[1m<\033[22m " + message);
+        } else {
+            double bitcoin;
+
+            try {
+                bitcoin = Double.parseDouble(inResponse.readLine());
+            } catch (IOException | NumberFormatException e) {
+                System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
+                return;
+            }
+
+            System.out.println("\033[1m<\033[22m Valore: " + bitcoin + " btc");
+        }
     }
 
     private static int printResponse() throws NumberFormatException, IOException {
