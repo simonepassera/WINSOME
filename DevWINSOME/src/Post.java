@@ -20,6 +20,9 @@ public class Post {
     // Utenti che hanno espresso una preferenza positiva o negativa
     // Non viene mai serializzata con gson
     transient private final HashSet<String> usersVote;
+    // Utenti cha hanno eseguito il rewin del post
+    // Non viene mai serializzata con gson
+    transient private final HashSet<String> usersRewin;
 
     public Post(String author, String title, String text, AtomicInteger idGenerator) {
         id = idGenerator.incrementAndGet();
@@ -27,6 +30,7 @@ public class Post {
         this.title = title;
         this.text = text;
         usersVote = new HashSet<>();
+        usersRewin = new HashSet<>();
         comments = new ArrayList<>();
         upvote = 0;
         downvote = 0;
@@ -53,6 +57,8 @@ public class Post {
     public Integer getUpvote() { return upvote; }
 
     public Integer getDownVote() { return downvote; }
+
+    public HashSet<String> getUsersRewin() { return usersRewin; }
 
     // @Return  0 -> ok
     //          1 -> post già votato
@@ -81,5 +87,9 @@ public class Post {
         userComment.append(username).append(" ").append(comment);
 
         comments.add(userComment.toString());
+    }
+
+    public synchronized void addUserRewin(String username) {
+        usersRewin.add(username);
     }
 }

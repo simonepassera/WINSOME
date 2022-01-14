@@ -269,6 +269,18 @@ public class ClientMain {
                         if (command.size() < 3) { System.out.println("\033[1m<\033[22m \033[1mpost\033[22m <title [\033[1mmax 20\033[22m]> <content [\033[1mmax 500\033[22m]>"); break; }
                         createPost(command.get(1), command.get(2));
                         break;
+                    case "delete":
+                        if (command.size() < 2) { System.out.println("\033[1m<\033[22m \033[1mdelete\033[22m <id>"); break; }
+
+                        try {
+                            id = Integer.parseInt(command.get(1));
+                        } catch (NumberFormatException e) {
+                            System.out.println("\033[1m<\033[22m \033[1mdelete\033[22m <id>");
+                            break;
+                        }
+
+                        deletePost(id);
+                        break;
                     case "rewin":
                         if (command.size() < 2) { System.out.println("\033[1m<\033[22m \033[1mrewin\033[22m <id>"); break; }
 
@@ -442,6 +454,7 @@ public class ClientMain {
         System.out.println("\033[1m<\033[22m \033[1mfollow\033[22m <username>\033[50Gpermette di seguire un utente.");
         System.out.println("\033[1m<\033[22m \033[1munfollow\033[22m <username>\033[50Gpermette di non seguire più un utente.");
         System.out.println("\033[1m<\033[22m \033[1mpost\033[22m <title> <content>\033[50Gpermette di pubblicare un nuovo post.");
+        System.out.println("\033[1m<\033[22m \033[1mdelete\033[22m <id>\033[50Goperazione per cancellare un post di cui si è autori.");
         System.out.println("\033[1m<\033[22m \033[1mblog\033[22m\033[50Gvisualizza la lista dei post nel proprio blog.");
         System.out.println("\033[1m<\033[22m \033[1mshow feed\033[22m\033[50Gmostra il proprio feed.");
         System.out.println("\033[1m<\033[22m \033[1mshow post\033[22m <id>\033[50Gmostra il contenuto del post, i voti positivi e negativi ed i relativi commenti.");
@@ -800,6 +813,18 @@ public class ClientMain {
         outRequest.println("createPost");
         outRequest.println(title);
         outRequest.println(content);
+        outRequest.flush();
+
+        try {
+            printResponse();
+        } catch (IOException | NumberFormatException e) {
+            System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
+        }
+    }
+
+    private static void deletePost(int id) {
+        outRequest.println("deletePost");
+        outRequest.println(id);
         outRequest.flush();
 
         try {

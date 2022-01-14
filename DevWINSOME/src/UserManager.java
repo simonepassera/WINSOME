@@ -130,6 +130,18 @@ public class UserManager implements Runnable {
                         content = request.readLine();
                         createPost(title, content, response);
                         break;
+                    case "deletePost":
+                        try {
+                            id = Integer.parseInt(request.readLine());
+                        } catch (NumberFormatException fe) {
+                            response.println(415);
+                            response.println("id post errore di conversione");
+                            response.flush();
+                            break;
+                        }
+
+                        deletePost(id, response);
+                        break;
                     case "showPost":
                         try {
                             id = Integer.parseInt(request.readLine());
@@ -657,6 +669,55 @@ public class UserManager implements Runnable {
         response.flush();
     }
 
+    // SINCRONIZZAZIONE NON FINITA ++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    private void deletePost(Integer id, PrintWriter response) {
+        // Argomento null
+        if (id == null) {
+            response.println(400);
+            response.println("errore, uno o più argomenti uguali a null");
+            response.flush();
+            return;
+        }
+        // Controllo che ci sia un utente connesso
+        if (usernameLogin == null) {
+            response.println(406);
+            response.println("errore, nessun utente connesso");
+            response.flush();
+            return;
+        }
+        // Recupero il post
+        Post p = posts.get(id);
+        // Controllo se esiste
+        if (p == null) {
+            response.println(416);
+            response.println("errore, post " + id + " non esiste");
+            response.flush();
+            return;
+        }
+        // Controllo che l'utente sia l'autore del post
+        if (!p.getAuthor().equals(usernameLogin)) {
+            response.println(416);
+            response.println("errore, non sei autore del post " + id);
+            response.flush();
+            return;
+        }
+        // Elimino il post nel blog
+        posts.remove(p.getId());
+        Vector<Post> blog = blogs.get(usernameLogin);
+        blog.remove(p);
+        // Elimino il post nei blog degli utenti cha hanno eseguito il rewin
+        synchronized (p) {
+            for (String user : p.getUsersRewin()) {
+                blog = blogs.get(user);
+                blog.remove(p);
+            }
+        }
+        // ok
+        response.println(200);
+        response.println("post (id = " + id + ") cancellato");
+        response.flush();
+    }
+
     private void showPost(Integer id, PrintWriter response) {
         // Argomento null
         if (id == null) {
@@ -815,7 +876,9 @@ public class UserManager implements Runnable {
                     }
             }
 
-            if (find) {
+            if (!find) {
+                // Inserisco nel post che usernameLogin ha eseguito il rewin
+                p.addUserRewin(usernameLogin);
                 blog.add(p);
             } else {
                 response.println(418);
