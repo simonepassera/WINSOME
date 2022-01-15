@@ -5,8 +5,7 @@ import java.net.*;
 import java.net.UnknownHostException;
 import java.rmi.*;
 import java.rmi.registry.*;
-import java.util.ArrayList;
-import java.util.Vector;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -20,6 +19,8 @@ public class ServerMain {
     private static int REGISTRY_PORT;
     // Percentuale ricompensa autore
     private static int REWARD_AUTHOR;
+    // Stabilisce ogni quanti secondi eseguire il calcolo delle ricompense
+    private static int REWARD_TIMER;
     // Mappa (username, password)
     private static ConcurrentHashMap<String, String> users;
     // Mappa (username, tags)
@@ -40,7 +41,6 @@ public class ServerMain {
     private static Vector<String> connectedUsers;
     // Generatore id per un post
     private static AtomicInteger idGenerator;
-
 
     public static void main(String[] args) {
         // Controllo se esiste il file di configurazione
@@ -92,6 +92,23 @@ public class ServerMain {
             System.exit(1);
         }
 
+        // Avvio il thread per il calcolo delle ricompense
+        RewardManager rewardManager = new RewardManager(MULTICAST_ADDRESS, MULTICAST_PORT, REWARD_TIMER);
+        Thread threadRewardManager = new Thread(rewardManager);
+        threadRewardManager.start();
+
+        // Installo un gestore per la terminazione
+        Thread hook = new Thread() {
+            @Override
+            public void run() {
+                threadRewardManager.interrupt();
+                try {
+                    threadRewardManager.join();
+                } catch (InterruptedException ignored) {}
+            }
+        };
+        Runtime.getRuntime().addShutdownHook(hook);
+
         // Creo il listen socket sulla porta specificata nel file di configurazione
         try (ServerSocket listenSocket = new ServerSocket(PORT_TCP)) {
             ExecutorService pool = new ThreadPoolExecutor(10, Integer.MAX_VALUE, 60, TimeUnit.SECONDS, new SynchronousQueue<>());
@@ -114,7 +131,7 @@ public class ServerMain {
             String line;
             String[] values;
             // Array per ricordare le stringhe di configurazione incontrate
-            int[] stringSet = new int[5];
+            int[] stringSet = new int[6];
 
             // Leggo una linea
             while ((line = configFile.readLine()) != null) {
@@ -183,6 +200,17 @@ public class ServerMain {
                         }
 
                         stringSet[4] = 1;
+                        break;
+                    case "REWARD_TIMER":
+                        try {
+                            REWARD_TIMER = Integer.parseInt(values[1].trim());
+                            if (REWARD_TIMER < 0) throw new NumberFormatException();
+                        } catch (NumberFormatException e) {
+                            System.err.println("File di configurazione: TIMEOUT -> valore invalido");
+                            System.exit(1);
+                        }
+
+                        stringSet[5] = 1;
                         break;
                 }
             }
