@@ -335,7 +335,7 @@ public class ClientMain {
                         else System.out.println("\033[1m<\033[22m \033[1mwallet btc\033[22m");
                         break;
                     case "exit":
-                        if (exit(walletUpdate, threadWalletUpdate) == 0) return;
+                        if (exit(walletUpdate, threadWalletUpdate) == 0) System.exit(0);
                         break;
                     default: System.out.println("\033[1m<\033[22m comando non trovato (Prova 'help' per maggiori informazioni)");
                 }
@@ -998,7 +998,7 @@ public class ClientMain {
                 return;
             }
 
-            System.out.println("\033[1m<\033[22m Valore: " + bitcoin + " btc");
+            System.out.println("\033[1m<\033[22m Valore: " + bitcoin + " BTC");
         }
     }
 

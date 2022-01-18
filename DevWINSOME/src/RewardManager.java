@@ -1,16 +1,29 @@
 import java.io.IOException;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
+import java.sql.Timestamp;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class RewardManager implements Runnable {
     private final long timer;
     private final InetAddress multicastAddress;
     private final int multicastPort;
+    private final ListInteractions listInteractions;
+    private final ConcurrentHashMap<Integer, Post> posts;
+    private final ConcurrentHashMap<String, Wallet> wallets;
+    private final int reward_author;
 
-    public RewardManager(InetAddress multicastAddress, int multicastPort, int timer) {
+    public RewardManager(InetAddress multicastAddress, int multicastPort, int timer, ListInteractions listInteractions, ConcurrentHashMap<Integer, Post> posts, ConcurrentHashMap<String, Wallet> wallets, int reward_author) {
         this.multicastAddress = multicastAddress;
         this.multicastPort = multicastPort;
         this.timer = timer;
+        this.listInteractions = listInteractions;
+        this.posts = posts;
+        this.wallets = wallets;
+        this.reward_author = reward_author;
     }
 
     @Override
@@ -30,6 +43,62 @@ public class RewardManager implements Runnable {
                 }
 
                 if (!exit) {
+                    synchronized (listInteractions) {
+                        HashMap<Integer, Interaction> interactions = listInteractions.getInteractions();
+
+                        for (Map.Entry<Integer, Interaction> postInteractions : interactions.entrySet()) {
+                            Interaction interaction = postInteractions.getValue();
+
+                            if (interaction.isFlagInteraction()) {
+                                HashSet<String> upVote = interaction.getUpVote();
+                                int downVote = interaction.getDownVote();
+                                HashMap<String, Integer> numComments = interaction.getNumComments();
+
+                                double sumNewComments = 0;
+
+                                for (Integer num : numComments.values()) {
+                                    sumNewComments += 2/(1 + Math.exp(-(num - 1)));
+                                }
+
+                                double reward = (Math.log(Math.max(upVote.size() - downVote, 0) + 1) + Math.log(sumNewComments + 1))/interaction.getIteration();
+                                reward = Math.round(reward * 10) / 10.0;
+
+                                String author = posts.get(postInteractions.getKey()).getAuthor();
+
+                                double rewardAuthor = (reward / 100) * reward_author;
+
+                                // Utilizzo il set upVote per avere un insieme contenente
+                                // una persona che ha effettuato un upVote e/o un commento
+                                upVote.addAll(numComments.keySet());
+                                int numCurators = upVote.size();
+                                double rewardCurator = (reward - rewardAuthor)/numCurators;
+
+                                // Timestamp
+                                Timestamp now = new Timestamp(System.currentTimeMillis());
+
+                                Wallet wallet;
+
+                                // Ricompensa autore
+                                if (rewardAuthor != 0) {
+                                     wallet = wallets.get(author);
+                                    wallet.addReward(rewardAuthor, now);
+                                }
+
+                                // Ricompensa curatori
+                                if (rewardCurator != 0) {
+                                    for (String username : upVote) {
+                                        wallet = wallets.get(username);
+                                        wallet.addReward(rewardCurator, now);
+                                    }
+                                }
+
+                                interaction.reset();
+                            }
+
+                            interaction.incrementIteration();
+                        }
+                    }
+
                     notifySocket.send(rewardMessage);
                 }
             }

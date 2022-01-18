@@ -1,3 +1,4 @@
+import java.sql.Timestamp;
 import java.util.ArrayList;
 
 public class Wallet {
@@ -11,11 +12,16 @@ public class Wallet {
         transactions = new ArrayList<>();
     }
 
-    public double getWincoin() {
+    public synchronized double getWincoin() {
         return wincoin;
     }
 
-    public ArrayList<String> getTransactions() {
+    public synchronized ArrayList<String> getTransactions() {
         return transactions;
+    }
+
+    public synchronized void addReward(double reward, Timestamp timestamp) {
+        wincoin += reward;
+        transactions.add("+" + reward + " " + timestamp);
     }
 }

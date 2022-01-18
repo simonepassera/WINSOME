@@ -37,6 +37,8 @@ public class UserManager implements Runnable {
     private final ConcurrentHashMap<Integer, Post> posts;
     // Mappa (username, wallet)
     private final ConcurrentHashMap<String, Wallet> wallets;
+    // Lista delle interazioni dall'ultimo calcolo delle ricompense
+    private final ListInteractions listInteractions;
     // Lista degli utenti connessi
     private final Vector<String> connectedUsers;
     // Generatore id per un post
@@ -54,7 +56,7 @@ public class UserManager implements Runnable {
     // Tipo walllet
     Type walletType;
 
-    public UserManager(Socket user, ConcurrentHashMap<String, String> users, ConcurrentHashMap<String, ArrayList<String>> tags, ConcurrentHashMap<String, NotifyFollowersInterface> stubs, ConcurrentHashMap<String, Vector<String>> followers, ConcurrentHashMap<String, Vector<String>> followings, ConcurrentHashMap<String, Vector<Post>> blogs, ConcurrentHashMap<Integer, Post> posts, ConcurrentHashMap<String, Wallet> wallets, Vector<String> connectedUsers, AtomicInteger idGenerator, String multicastAddress, int multicastPort) {
+    public UserManager(Socket user, ConcurrentHashMap<String, String> users, ConcurrentHashMap<String, ArrayList<String>> tags, ConcurrentHashMap<String, NotifyFollowersInterface> stubs, ConcurrentHashMap<String, Vector<String>> followers, ConcurrentHashMap<String, Vector<String>> followings, ConcurrentHashMap<String, Vector<Post>> blogs, ConcurrentHashMap<Integer, Post> posts, ConcurrentHashMap<String, Wallet> wallets, ListInteractions listInteractions, Vector<String> connectedUsers, AtomicInteger idGenerator, String multicastAddress, int multicastPort) {
         this.user = user;
         this.users = users;
         this.tags = tags;
@@ -64,6 +66,7 @@ public class UserManager implements Runnable {
         this.blogs = blogs;
         this.posts = posts;
         this.wallets = wallets;
+        this.listInteractions = listInteractions;
         this.connectedUsers = connectedUsers;
         this.idGenerator = idGenerator;
         this.multicastAddress = multicastAddress;
@@ -658,6 +661,8 @@ public class UserManager implements Runnable {
         }
         // Creo il post
         Post newPost = new Post(usernameLogin, title, content, idGenerator);
+        // Aggiungo il post alla lista delle interazioni
+        listInteractions.addPost(newPost.getId());
         // Inserisco il post nel blog dell'utente connesso, e nella lista di tutti i post
         Vector<Post> blog = blogs.get(usernameLogin);
 
@@ -667,6 +672,7 @@ public class UserManager implements Runnable {
                 posts.putIfAbsent(newPost.getId(), newPost);
             }
         }
+
         // ok
         response.println(200);
         response.println("post pubblicato (id = " + newPost.getId() + ")");
@@ -716,6 +722,8 @@ public class UserManager implements Runnable {
                 blog.remove(p);
             }
         }
+        // Elimino il post dalla lista delle interazioni
+        listInteractions.removePost(id);
         // ok
         response.println(200);
         response.println("post (id = " + id + ") cancellato");
@@ -978,6 +986,10 @@ public class UserManager implements Runnable {
             return;
         }
 
+        // Aggiungo il voto alla lista delle interazioni
+        if (vote == 1) listInteractions.addUpVote(id, usernameLogin);
+        else listInteractions.addDownVote(id);
+
         // ok
         response.println(200);
         response.println("post (id = " + id + ") votato");
@@ -1050,6 +1062,8 @@ public class UserManager implements Runnable {
         }
         // Aggiungo il commento
         p.addComment(usernameLogin, comment);
+        // Aggiungo il commento alla lista delle interazioni
+        listInteractions.addComment(id, usernameLogin);
 
         // ok
         response.println(200);

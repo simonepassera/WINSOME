@@ -37,6 +37,8 @@ public class ServerMain {
     private static ConcurrentHashMap<Integer, Post> posts;
     // Mappa (username, wallet)
     private static ConcurrentHashMap<String, Wallet> wallets;
+    // Lista delle interazioni dall'ultimo calcolo delle ricompense
+    private static ListInteractions listInteractions;
     // Lista degli utenti connessi
     private static Vector<String> connectedUsers;
     // Generatore id per un post
@@ -71,6 +73,7 @@ public class ServerMain {
         blogs = new ConcurrentHashMap<>();
         posts = new ConcurrentHashMap<>();
         wallets = new ConcurrentHashMap<>();
+        listInteractions = new ListInteractions();
         connectedUsers = new Vector<>();
         idGenerator = new AtomicInteger(9);
 
@@ -93,7 +96,7 @@ public class ServerMain {
         }
 
         // Avvio il thread per il calcolo delle ricompense
-        RewardManager rewardManager = new RewardManager(MULTICAST_ADDRESS, MULTICAST_PORT, REWARD_TIMER);
+        RewardManager rewardManager = new RewardManager(MULTICAST_ADDRESS, MULTICAST_PORT, REWARD_TIMER, listInteractions, posts, wallets, REWARD_AUTHOR);
         Thread threadRewardManager = new Thread(rewardManager);
         threadRewardManager.start();
 
@@ -116,7 +119,7 @@ public class ServerMain {
             System.out.println("Server avviato ...");
 
             while (true) {
-                pool.execute(new UserManager(listenSocket.accept(), users, tags, stubs, followers, followings, blogs, posts, wallets, connectedUsers, idGenerator, MULTICAST_ADDRESS.getHostAddress(), MULTICAST_PORT));
+                pool.execute(new UserManager(listenSocket.accept(), users, tags, stubs, followers, followings, blogs, posts, wallets, listInteractions, connectedUsers, idGenerator, MULTICAST_ADDRESS.getHostAddress(), MULTICAST_PORT));
             }
         } catch (IOException e) {
             e.printStackTrace();
