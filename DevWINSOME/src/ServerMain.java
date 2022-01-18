@@ -5,6 +5,7 @@ import java.net.*;
 import java.net.UnknownHostException;
 import java.rmi.*;
 import java.rmi.registry.*;
+import java.rmi.server.UnicastRemoteObject;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -17,6 +18,8 @@ public class ServerMain {
     private static int MULTICAST_PORT;
     // Porta del registry
     private static int REGISTRY_PORT;
+    // Tempo massimo per attendere la terminazione di tutti i client (secondi)
+    private static int TERMINATION_TIMEOUT;
     // Percentuale ricompensa autore
     private static int REWARD_AUTHOR;
     // Stabilisce ogni quanti secondi eseguire il calcolo delle ricompense
@@ -100,27 +103,78 @@ public class ServerMain {
         Thread threadRewardManager = new Thread(rewardManager);
         threadRewardManager.start();
 
-        // Installo un gestore per la terminazione
-        Thread hook = new Thread() {
-            @Override
-            public void run() {
-                threadRewardManager.interrupt();
-                try {
-                    threadRewardManager.join();
-                } catch (InterruptedException ignored) {}
-            }
-        };
-        Runtime.getRuntime().addShutdownHook(hook);
-
         // Creo il listen socket sulla porta specificata nel file di configurazione
         try (ServerSocket listenSocket = new ServerSocket(PORT_TCP)) {
             ExecutorService pool = new ThreadPoolExecutor(10, Integer.MAX_VALUE, 60, TimeUnit.SECONDS, new SynchronousQueue<>());
-
             System.out.println("Server avviato ...");
 
+            // Creo un thread per catturate 'exit' da tastiera
+            Thread exitThread = new Thread() {
+                @Override
+                public void run() {
+                    Scanner input = new Scanner(System.in);
+
+                    System.out.println("Comando \033[1mexit\033[22m per terminare");
+                    System.out.print("> ");
+
+                    while (!input.nextLine().equals("exit")) {
+                        System.out.print("> ");
+                    }
+
+                    System.out.println("\033[1m<\033[22m termino ed esco");
+
+                    try {
+                        listenSocket.close();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                        System.exit(1);
+                    }
+                }
+            };
+
+            exitThread.start();
+
+            Socket client;
+
             while (true) {
-                pool.execute(new UserManager(listenSocket.accept(), users, tags, stubs, followers, followings, blogs, posts, wallets, listInteractions, connectedUsers, idGenerator, MULTICAST_ADDRESS.getHostAddress(), MULTICAST_PORT));
+                try {
+                    client = listenSocket.accept();
+                } catch (IOException exit) {
+                    break;
+                }
+
+                pool.execute(new UserManager(client, users, tags, stubs, followers, followings, blogs, posts, wallets, listInteractions, connectedUsers, idGenerator, MULTICAST_ADDRESS.getHostAddress(), MULTICAST_PORT));
             }
+
+            pool.shutdown();
+
+            boolean poolTermination = true;
+
+            try {
+                poolTermination = pool.awaitTermination(TERMINATION_TIMEOUT, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+                System.exit(1);
+            }
+
+            if (!poolTermination) pool.shutdownNow();
+            // Termino il servizio RMI
+            UnicastRemoteObject.unexportObject(rmiServices, true);
+
+            try {
+                pool.awaitTermination(TERMINATION_TIMEOUT, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+                System.exit(1);
+            }
+
+            threadRewardManager.interrupt();
+
+            try {
+                threadRewardManager.join();
+            } catch (InterruptedException ignored) {}
+
+            System.exit(0);
         } catch (IOException e) {
             e.printStackTrace();
             System.exit(1);
@@ -134,7 +188,7 @@ public class ServerMain {
             String line;
             String[] values;
             // Array per ricordare le stringhe di configurazione incontrate
-            int[] stringSet = new int[6];
+            int[] stringSet = new int[7];
 
             // Leggo una linea
             while ((line = configFile.readLine()) != null) {
@@ -214,6 +268,17 @@ public class ServerMain {
                         }
 
                         stringSet[5] = 1;
+                        break;
+                    case "TERMINATION_TIMEOUT":
+                        try {
+                            TERMINATION_TIMEOUT = Integer.parseInt(values[1].trim());
+                            if (TERMINATION_TIMEOUT < 0) throw new NumberFormatException();
+                        } catch (NumberFormatException e) {
+                            System.err.println("File di configurazione: TERMINATION_TIMEOUT -> valore invalido");
+                            System.exit(1);
+                        }
+
+                        stringSet[6] = 1;
                         break;
                 }
             }

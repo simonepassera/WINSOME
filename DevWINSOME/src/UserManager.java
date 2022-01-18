@@ -97,6 +97,13 @@ public class UserManager implements Runnable {
                     return;
                 }
 
+                if (Thread.currentThread().isInterrupted()) {
+                    response.println(503);
+                    response.println("server in chiusura");
+                    response.flush();
+                    return;
+                }
+
                 switch (command) {
                     case "exit":
                         exit(response);

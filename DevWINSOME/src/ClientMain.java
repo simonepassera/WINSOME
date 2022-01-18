@@ -303,14 +303,12 @@ public class ClientMain {
                             break;
                         }
 
-                        if (command.get(2).equals("+1"))
-                        {
+                        if (command.get(2).equals("+1")) {
                             ratePost(id, 1);
                             break;
                         }
 
-                        if (command.get(2).equals("-1"))
-                        {
+                        if (command.get(2).equals("-1")) {
                             ratePost(id, -1);
                             break;
                         }
@@ -574,6 +572,8 @@ public class ClientMain {
         if (code != 201){
             if (verbose) System.out.println("\033[1m<\033[22m [\033[1m" + code + "\033[22m] " + message);
             else System.out.println("\033[1m<\033[22m " + message);
+            // Server in chiusura
+            if (code == 503) System.exit(0);
         } else {
             HashMap<String, ArrayList<String>> listUsersTags;
             Type hashMapType = new TypeToken<HashMap<String, ArrayList<String>>>(){}.getType();
@@ -645,6 +645,8 @@ public class ClientMain {
         if (code != 201){
             if (verbose) System.out.println("\033[1m<\033[22m [\033[1m" + code + "\033[22m] " + message);
             else System.out.println("\033[1m<\033[22m " + message);
+            // Server in chiusura
+            if (code == 503) System.exit(0);
         } else {
             ArrayList<String> listUsers;
             Type arrayListType = new TypeToken<ArrayList<String>>(){}.getType();
@@ -711,6 +713,8 @@ public class ClientMain {
         if (code != 201){
             if (verbose) System.out.println("\033[1m<\033[22m [\033[1m" + code + "\033[22m] " + message);
             else System.out.println("\033[1m<\033[22m " + message);
+            // Server in chiusura
+            if (code == 503) System.exit(0);
         } else {
             int size;
 
@@ -762,8 +766,9 @@ public class ClientMain {
         if (code != 201){
             if (verbose) System.out.println("\033[1m<\033[22m [\033[1m" + code + "\033[22m] " + message);
             else System.out.println("\033[1m<\033[22m " + message);
+            // Server in chiusura
+            if (code == 503) System.exit(0);
         } else {
-
             int numFollowing;
 
             try {
@@ -853,6 +858,8 @@ public class ClientMain {
         if (code != 201){
             if (verbose) System.out.println("\033[1m<\033[22m [\033[1m" + code + "\033[22m] " + message);
             else System.out.println("\033[1m<\033[22m " + message);
+            // Server in chiusura
+            if (code == 503) System.exit(0);
         } else {
             Post post;
             // Tipo post
@@ -942,6 +949,8 @@ public class ClientMain {
         if (code != 201){
             if (verbose) System.out.println("\033[1m<\033[22m [\033[1m" + code + "\033[22m] " + message);
             else System.out.println("\033[1m<\033[22m " + message);
+            // Server in chiusura
+            if (code == 503) System.exit(0);
         } else {
             Wallet wallet;
             // Tipo wallet
@@ -988,6 +997,8 @@ public class ClientMain {
         if (code != 201){
             if (verbose) System.out.println("\033[1m<\033[22m [\033[1m" + code + "\033[22m] " + message);
             else System.out.println("\033[1m<\033[22m " + message);
+            // Server in chiusura
+            if (code == 503) System.exit(0);
         } else {
             double bitcoin;
 
@@ -1013,6 +1024,9 @@ public class ClientMain {
         else System.out.println("\033[1m<\033[22m " + message);
 
         System.out.flush();
+
+        // Server in chiusura
+        if (code == 503) System.exit(0);
 
         return code;
     }
