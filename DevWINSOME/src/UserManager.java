@@ -73,7 +73,7 @@ public class UserManager implements Runnable {
         this.multicastPort = multicastPort;
         gson = new Gson();
         gsonExpose = new GsonBuilder().excludeFieldsWithoutExposeAnnotation().create();
-        CodeReturnType = new TypeToken<CodeReturn>(){}.getType();
+        CodeReturnType = new TypeToken<CodeReturn>() {}.getType();
         postType = new TypeToken<Post>() {}.getType();
         walletType = new TypeToken<Wallet>() {}.getType();
     }

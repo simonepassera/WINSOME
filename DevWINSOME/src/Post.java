@@ -18,10 +18,10 @@ public class Post {
     @Expose(serialize = false, deserialize = false)
     private ArrayList<String> comments;
     // Utenti che hanno espresso una preferenza positiva o negativa
-    // Non viene mai serializzata con gson
+    // Non viene mai inviata
     transient private final HashSet<String> usersVote;
     // Utenti cha hanno eseguito il rewin del post
-    // Non viene mai serializzata con gson
+    // Non viene mai inviata
     transient private final HashSet<String> usersRewin;
 
     public Post(String author, String title, String text, AtomicInteger idGenerator) {
@@ -36,21 +36,13 @@ public class Post {
         downvote = 0;
     }
 
-    public Integer getId() {
-        return id;
-    }
+    public Integer getId() { return id; }
 
-    public String getAuthor() {
-        return author;
-    }
+    public String getAuthor() { return author; }
 
-    public String getTitle() {
-        return title;
-    }
+    public String getTitle() { return title; }
 
-    public String getText() {
-        return text;
-    }
+    public String getText() { return text; }
 
     public ArrayList<String> getComments() { return comments; }
 

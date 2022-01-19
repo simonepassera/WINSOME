@@ -35,10 +35,14 @@ public class RewardManager implements Runnable {
 
             boolean exit = false;
 
-            while (!exit && !Thread.currentThread().isInterrupted()) {
-                try {
-                    Thread.sleep(timer * 1000);
-                }catch (InterruptedException e) {
+            while (!exit) {
+                if (!Thread.currentThread().isInterrupted()) {
+                    try {
+                        Thread.sleep(timer * 1000);
+                    } catch (InterruptedException e) {
+                        exit = true;
+                    }
+                } else {
                     exit = true;
                 }
 
