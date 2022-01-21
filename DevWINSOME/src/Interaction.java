@@ -7,13 +7,15 @@ public class Interaction {
     private int downVote;
     private HashMap<String, Integer> numComments;
     private boolean flagInteraction;
+    private String author;
 
-    public Interaction() {
+    public Interaction(String author) {
         iteration = 1;
         upVote = new HashSet<>();
         downVote = 0;
         numComments = new HashMap<>();
         flagInteraction = false;
+        this.author = author;
     }
 
     public void addUpVote(String username) {
@@ -36,6 +38,10 @@ public class Interaction {
 
     public int getDownVote() {
         return downVote;
+    }
+
+    public String getAuthor() {
+        return author;
     }
 
     public HashSet<String> getUpVote() {

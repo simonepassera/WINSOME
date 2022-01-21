@@ -19,10 +19,10 @@ public class Post {
     private ArrayList<String> comments;
     // Utenti che hanno espresso una preferenza positiva o negativa
     // Non viene mai inviata
-    transient private final HashSet<String> usersVote;
+    private transient final HashSet<String> usersVote;
     // Utenti cha hanno eseguito il rewin del post
     // Non viene mai inviata
-    transient private final HashSet<String> usersRewin;
+    private transient final HashSet<String> usersRewin;
 
     public Post(String author, String title, String text, AtomicInteger idGenerator) {
         id = idGenerator.incrementAndGet();
@@ -36,21 +36,14 @@ public class Post {
         downvote = 0;
     }
 
+    // Metodi get usati dal client
     public Integer getId() { return id; }
-
     public String getAuthor() { return author; }
-
     public String getTitle() { return title; }
-
     public String getText() { return text; }
-
-    public ArrayList<String> getComments() { return comments; }
-
     public Integer getUpvote() { return upvote; }
-
     public Integer getDownVote() { return downvote; }
-
-    public HashSet<String> getUsersRewin() { return usersRewin; }
+    public ArrayList<String> getComments() { return comments; }
 
     // @Return  0 -> ok
     //          1 -> post già votato
@@ -84,4 +77,6 @@ public class Post {
     public synchronized void addUserRewin(String username) {
         usersRewin.add(username);
     }
+
+    public HashSet<String> getUsersRewin() { return usersRewin; }
 }

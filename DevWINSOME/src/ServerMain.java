@@ -41,9 +41,9 @@ public class ServerMain {
     // Mappa (username, stub_callback)
     private static ConcurrentHashMap<String, NotifyFollowersInterface> stubs;
     // Mappa (username, followers)
-    private static ConcurrentHashMap<String, Vector<String>> followers;
+    private static ConcurrentHashMap<String, ArrayList<String>> followers;
     // Mappa (username, following)
-    private static ConcurrentHashMap<String, Vector<String>> followings;
+    private static ConcurrentHashMap<String, ArrayList<String>> followings;
     // Mappa (username, blog)
     private static ConcurrentHashMap<String, Vector<Post>> blogs;
     // Mappa (idPost, post)
@@ -96,11 +96,11 @@ public class ServerMain {
             System.exit(1);
         }
         // Avvio il thread per il calcolo delle ricompense
-        RewardManager rewardManager = new RewardManager(MULTICAST_ADDRESS, MULTICAST_PORT, REWARD_TIMER, listInteractions, posts, wallets, REWARD_AUTHOR);
+        RewardManager rewardManager = new RewardManager(MULTICAST_ADDRESS, MULTICAST_PORT, REWARD_TIMER, listInteractions, wallets, REWARD_AUTHOR);
         Thread threadRewardManager = new Thread(rewardManager);
         threadRewardManager.start();
         // Avvio il thread per salvare i dati
-        DataManager dataManager = new DataManager(DATA_PATH, SAVE_TIMER, users, tags, followers, followings, blogs, posts, wallets, idGenerator);
+        DataManager dataManager = new DataManager(DATA_PATH, SAVE_TIMER, users, tags, followers, followings, blogs, posts, wallets, listInteractions, idGenerator);
         Thread threadDataManager = new Thread(dataManager);
         threadDataManager.start();
         // Creo il listen socket sulla porta specificata nel file di configurazione
@@ -337,15 +337,14 @@ public class ServerMain {
             users = gson.fromJson(json, usersType);
             json = dataFile.readLine();
             if (json.equals("")) { throw new JsonSyntaxException("Oggetto json stringa vuota"); }
-            Type tagsType = new TypeToken<ConcurrentHashMap<String, ArrayList<String>>>() {}.getType();
-            tags = gson.fromJson(json, tagsType);
+            Type mapStringArrayListStringType = new TypeToken<ConcurrentHashMap<String, ArrayList<String>>>() {}.getType();
+            tags = gson.fromJson(json, mapStringArrayListStringType);
             json = dataFile.readLine();
             if (json.equals("")) { throw new JsonSyntaxException("Oggetto json stringa vuota"); }
-            Type mapStringVectorStringType = new TypeToken<ConcurrentHashMap<String, Vector<String>>>() {}.getType();
-            followers = gson.fromJson(json, mapStringVectorStringType);
+            followings = gson.fromJson(json, mapStringArrayListStringType);
             json = dataFile.readLine();
             if (json.equals("")) { throw new JsonSyntaxException("Oggetto json stringa vuota"); }
-            followings = gson.fromJson(json, mapStringVectorStringType);
+            followers = gson.fromJson(json, mapStringArrayListStringType);
             json = dataFile.readLine();
             if (json.equals("")) { throw new JsonSyntaxException("Oggetto json stringa vuota"); }
             Type blogsType = new TypeToken<ConcurrentHashMap<String, Vector<Post>>>() {}.getType();
@@ -360,15 +359,20 @@ public class ServerMain {
             wallets = gson.fromJson(json, walletsType);
             json = dataFile.readLine();
             if (json.equals("")) { throw new JsonSyntaxException("Oggetto json stringa vuota"); }
+            Type listInteractionsType = new TypeToken<ListInteractions>() {}.getType();
+            listInteractions = gson.fromJson(json, listInteractionsType);
+            json = dataFile.readLine();
+            if (json.equals("")) { throw new JsonSyntaxException("Oggetto json stringa vuota"); }
             idGenerator = gson.fromJson(json, AtomicInteger.class);
         } catch (FileNotFoundException e) {
             users = new ConcurrentHashMap<>();
             tags = new ConcurrentHashMap<>();
-            followers = new ConcurrentHashMap<>();
             followings = new ConcurrentHashMap<>();
+            followers = new ConcurrentHashMap<>();
             blogs = new ConcurrentHashMap<>();
             posts = new ConcurrentHashMap<>();
             wallets = new ConcurrentHashMap<>();
+            listInteractions = new ListInteractions();
             idGenerator = new AtomicInteger();
         } catch (JsonSyntaxException e) {
             System.err.println("File di salvataggio: " + e.getMessage());
@@ -379,7 +383,6 @@ public class ServerMain {
         }
 
         stubs = new ConcurrentHashMap<>();
-        listInteractions = new ListInteractions();
         connectedUsers = new Vector<>();
     }
 }

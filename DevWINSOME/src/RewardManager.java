@@ -12,16 +12,14 @@ public class RewardManager implements Runnable {
     private final InetAddress multicastAddress;
     private final int multicastPort;
     private final ListInteractions listInteractions;
-    private final ConcurrentHashMap<Integer, Post> posts;
     private final ConcurrentHashMap<String, Wallet> wallets;
     private final int reward_author;
 
-    public RewardManager(InetAddress multicastAddress, int multicastPort, int timer, ListInteractions listInteractions, ConcurrentHashMap<Integer, Post> posts, ConcurrentHashMap<String, Wallet> wallets, int reward_author) {
+    public RewardManager(InetAddress multicastAddress, int multicastPort, int timer, ListInteractions listInteractions, ConcurrentHashMap<String, Wallet> wallets, int reward_author) {
         this.multicastAddress = multicastAddress;
         this.multicastPort = multicastPort;
         this.timer = timer;
         this.listInteractions = listInteractions;
-        this.posts = posts;
         this.wallets = wallets;
         this.reward_author = reward_author;
     }
@@ -66,8 +64,6 @@ public class RewardManager implements Runnable {
                             double reward = (Math.log(Math.max(upVote.size() - downVote, 0) + 1) + Math.log(sumNewComments + 1)) / interaction.getIteration();
                             reward = Math.round(reward * 10) / 10.0;
 
-                            String author = posts.get(postInteractions.getKey()).getAuthor();
-
                             double rewardAuthor = (reward / 100) * reward_author;
 
                             // Utilizzo il set upVote per avere un insieme contenente
@@ -83,7 +79,7 @@ public class RewardManager implements Runnable {
 
                             // Ricompensa autore
                             if (rewardAuthor != 0) {
-                                wallet = wallets.get(author);
+                                wallet = wallets.get(interaction.getAuthor());
                                 wallet.addReward(rewardAuthor, now);
                             }
 

@@ -17,9 +17,9 @@ public class WinsomeRMI extends UnicastRemoteObject implements WinsomeRMIService
     // Mappa (username, stub_callback)
     private final ConcurrentHashMap<String, NotifyFollowersInterface> stubs;
     // Mappa (username, followers)
-    private final ConcurrentHashMap<String, Vector<String>> followers;
+    private final ConcurrentHashMap<String, ArrayList<String>> followers;
     // Mappa (username, following)
-    private final ConcurrentHashMap<String, Vector<String>> followings;
+    private final ConcurrentHashMap<String, ArrayList<String>> followings;
     // Mappa (username, blog)
     private final ConcurrentHashMap<String, Vector<Post>> blogs;
     // Mappa (username, wallet)
@@ -29,7 +29,7 @@ public class WinsomeRMI extends UnicastRemoteObject implements WinsomeRMIService
     // Oggetto gson
     Gson gson;
 
-    public WinsomeRMI(ConcurrentHashMap<String, String> users, ConcurrentHashMap<String, ArrayList<String>> tags, ConcurrentHashMap<String, NotifyFollowersInterface> stubs, ConcurrentHashMap<String, Vector<String>> followers, ConcurrentHashMap<String, Vector<String>> followings, ConcurrentHashMap<String, Vector<Post>> blogs, ConcurrentHashMap<String, Wallet> wallets) throws RemoteException {
+    public WinsomeRMI(ConcurrentHashMap<String, String> users, ConcurrentHashMap<String, ArrayList<String>> tags, ConcurrentHashMap<String, NotifyFollowersInterface> stubs, ConcurrentHashMap<String, ArrayList<String>> followers, ConcurrentHashMap<String, ArrayList<String>> followings, ConcurrentHashMap<String, Vector<Post>> blogs, ConcurrentHashMap<String, Wallet> wallets) throws RemoteException {
         super();
 
         this.users = users;
@@ -71,38 +71,27 @@ public class WinsomeRMI extends UnicastRemoteObject implements WinsomeRMIService
             tagsList.add(tag.toLowerCase());
         }
 
-        boolean insertUsers = false;
+        boolean insertUser = false;
 
         synchronized (users) {
-            synchronized (tags) {
-                synchronized (followings) {
-                    synchronized (followers) {
-                        synchronized (blogs) {
-                            synchronized (wallets) {
-                                // Inserisco username e password se l'utente non esiste
+            // Inserisco username e password se l'utente non esiste
+            if (users.putIfAbsent(username, password) == null) {
+                // Inserisco i tag
+                tags.put(username, tagsList);
+                // Inizializzo la lista dei following
+                followings.put(username, new ArrayList<>());
+                // Inizializzo la lista dei followers
+                followers.put(username, new ArrayList<>());
+                // Inizializzo il blog
+                blogs.put(username, new Vector<>());
+                // Inizializzo il wallet
+                wallets.put(username, new Wallet());
 
-                                if (users.putIfAbsent(username, password) == null) {
-                                    // Inserisco i tag
-                                    tags.put(username, tagsList);
-                                    // Inizializzo la lista dei following
-                                    followings.put(username, new Vector<>());
-                                    // Inizializzo la lista dei followers
-                                    followers.put(username, new Vector<>());
-                                    // Inizializzo il blog
-                                    blogs.put(username, new Vector<>());
-                                    // Inizializzo il wallet
-                                    wallets.put(username, new Wallet());
-
-                                    insertUsers = true;
-                                }
-                            }
-                        }
-                    }
-                }
+                insertUser = true;
             }
         }
 
-        if (insertUsers)
+        if (insertUser)
             // Ok
             return gson.toJson(new CodeReturn(200, "ok"), CodeReturnType);
         else
@@ -117,8 +106,7 @@ public class WinsomeRMI extends UnicastRemoteObject implements WinsomeRMIService
         if (username.isEmpty()) return gson.toJson(new CodeReturn(401, "errore, username vuoto"), CodeReturnType);
 
         // Recupero la lista dei followers di username
-        Vector<String> listFollowers = followers.get(username);
-        if (listFollowers == null)  return gson.toJson(new CodeReturn(500, "errore, lista dei followers non esiste"), CodeReturnType);
+        ArrayList<String> listFollowers = followers.get(username);
 
         // Tipo della lista dei followers
         Type vectorType = new TypeToken<Vector<String>>(){}.getType();
@@ -140,7 +128,7 @@ public class WinsomeRMI extends UnicastRemoteObject implements WinsomeRMIService
             return gson.toJson(new CodeReturn(200, "ok"), CodeReturnType);
 
         // L'utente è già registrato la servizio di callback
-        return gson.toJson(new CodeReturn(501, "utente già registrato alla callback"), CodeReturnType);
+        return gson.toJson(new CodeReturn(500, "utente già registrato alla callback"), CodeReturnType);
     }
 
     // Annulla la registrazione alla callback

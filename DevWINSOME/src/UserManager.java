@@ -28,9 +28,9 @@ public class UserManager implements Runnable {
     // Mappa (username, stub_callback)
     private final ConcurrentHashMap<String, NotifyFollowersInterface> stubs;
     // Mappa (username, followers)
-    private final ConcurrentHashMap<String, Vector<String>> followers;
+    private final ConcurrentHashMap<String, ArrayList<String>> followers;
     // Mappa (username, following)
-    private final ConcurrentHashMap<String, Vector<String>> followings;
+    private final ConcurrentHashMap<String, ArrayList<String>> followings;
     // Mappa (username, blog)
     private final ConcurrentHashMap<String, Vector<Post>> blogs;
     // Mappa (idPost, post)
@@ -55,8 +55,10 @@ public class UserManager implements Runnable {
     Type postType;
     // Tipo walllet
     Type walletType;
+    // Tipo mappa (utente, tags)
+    Type mapUserTagsType;
 
-    public UserManager(Socket user, ConcurrentHashMap<String, String> users, ConcurrentHashMap<String, ArrayList<String>> tags, ConcurrentHashMap<String, NotifyFollowersInterface> stubs, ConcurrentHashMap<String, Vector<String>> followers, ConcurrentHashMap<String, Vector<String>> followings, ConcurrentHashMap<String, Vector<Post>> blogs, ConcurrentHashMap<Integer, Post> posts, ConcurrentHashMap<String, Wallet> wallets, ListInteractions listInteractions, Vector<String> connectedUsers, AtomicInteger idGenerator, String multicastAddress, int multicastPort) {
+    public UserManager(Socket user, ConcurrentHashMap<String, String> users, ConcurrentHashMap<String, ArrayList<String>> tags, ConcurrentHashMap<String, NotifyFollowersInterface> stubs, ConcurrentHashMap<String, ArrayList<String>> followers, ConcurrentHashMap<String, ArrayList<String>> followings, ConcurrentHashMap<String, Vector<Post>> blogs, ConcurrentHashMap<Integer, Post> posts, ConcurrentHashMap<String, Wallet> wallets, ListInteractions listInteractions, Vector<String> connectedUsers, AtomicInteger idGenerator, String multicastAddress, int multicastPort) {
         this.user = user;
         this.users = users;
         this.tags = tags;
@@ -76,6 +78,7 @@ public class UserManager implements Runnable {
         CodeReturnType = new TypeToken<CodeReturn>() {}.getType();
         postType = new TypeToken<Post>() {}.getType();
         walletType = new TypeToken<Wallet>() {}.getType();
+        mapUserTagsType = new TypeToken<HashMap<String, ArrayList<String>>>() {}.getType();
     }
 
     @Override
@@ -98,7 +101,7 @@ public class UserManager implements Runnable {
                 }
 
                 if (Thread.currentThread().isInterrupted()) {
-                    response.println(503);
+                    response.println(502);
                     response.println("server in chiusura");
                     response.flush();
                     return;
@@ -350,7 +353,6 @@ public class UserManager implements Runnable {
         response.flush();
 
         HashMap<String, ArrayList<String>> usersTags = new HashMap<>();
-
         ArrayList<String> userLoginTags = tags.get(usernameLogin);
 
         for (String name : tags.keySet()) {
@@ -369,8 +371,7 @@ public class UserManager implements Runnable {
             }
         }
 
-        Type hashMapType = new TypeToken<HashMap<String, ArrayList<String>>>(){}.getType();
-        response.println(gson.toJson(usersTags, hashMapType));
+        response.println(gson.toJson(usersTags, mapUserTagsType));
         response.flush();
     }
 
@@ -387,12 +388,9 @@ public class UserManager implements Runnable {
         response.println("invio lista utenti");
         response.flush();
 
-        Vector<String> listUsers = followings.get(usernameLogin);
+        ArrayList<String> listUsers = followings.get(usernameLogin);
 
-        synchronized (listUsers) {
-            response.println(gson.toJson(listUsers));
-        }
-
+        response.println(gson.toJson(listUsers));
         response.flush();
     }
 
@@ -447,13 +445,13 @@ public class UserManager implements Runnable {
 
         if (!match) {
             response.println(409);
-            response.println("l'utente " + username + " non può essere seguito (nessun tag in comune)");
+            response.println("erroe, l'utente " + username + " non può essere seguito (nessun tag in comune)");
             response.flush();
             return;
         }
 
         // Controllo se l'utente segue già username
-        Vector<String> listFollowing = followings.get(usernameLogin);
+        ArrayList<String> listFollowing = followings.get(usernameLogin);
 
         if (listFollowing.contains(username)) {
             response.println(410);
@@ -462,7 +460,7 @@ public class UserManager implements Runnable {
             return;
         }
 
-        Vector<String> listFollowers = followers.get(username);
+        ArrayList<String> listFollowers = followers.get(username);
 
         synchronized (listFollowing) {
             synchronized (listFollowers) {
@@ -523,8 +521,8 @@ public class UserManager implements Runnable {
             response.flush();
             return;
         }
-        // Controllo se l'utente non segue username
-        Vector<String> listFollowing = followings.get(usernameLogin);
+        // Controllo se l'utente segue username
+        ArrayList<String> listFollowing = followings.get(usernameLogin);
 
         if (!listFollowing.contains(username)) {
             response.println(411);
@@ -533,7 +531,7 @@ public class UserManager implements Runnable {
             return;
         }
 
-        Vector<String> listFollowers = followers.get(username);
+        ArrayList<String> listFollowers = followers.get(username);
 
         synchronized (listFollowing) {
             synchronized (listFollowers) {
@@ -579,13 +577,13 @@ public class UserManager implements Runnable {
         response.flush();
 
         // Recupero la lista dei post
-        Vector<Post> post = blogs.get(usernameLogin);
+        Vector<Post> usernameBlog = blogs.get(usernameLogin);
 
-        synchronized (post) {
-            response.println(post.size());
+        synchronized (usernameBlog) {
+            response.println(usernameBlog.size());
             response.flush();
 
-            for (Post p : post) {
+            for (Post p : usernameBlog) {
                 synchronized (p) {
                     response.println(gsonExpose.toJson(p, postType));
                 }
@@ -608,30 +606,28 @@ public class UserManager implements Runnable {
         response.flush();
 
         // Recupero la lista dei following
-        Vector<String> listFollowing = followings.get(usernameLogin);
+        ArrayList<String> listFollowing = followings.get(usernameLogin);
         Vector<Post> postsFollowed;
 
-        synchronized (listFollowing) {
-            // Invio il numero di following
-            response.println(listFollowing.size());
-            response.flush();
+        // Invio il numero di following
+        response.println(listFollowing.size());
+        response.flush();
 
-            for (String nameFollowed : listFollowing) {
-                // Recupero il blog di ogni followed
-                postsFollowed = blogs.get(nameFollowed);
+        for (String nameFollowed : listFollowing) {
+            // Recupero il blog di ogni followed
+            postsFollowed = blogs.get(nameFollowed);
 
-                synchronized (postsFollowed) {
-                    // Invio il numero di post all'interno del blog
-                    response.println(postsFollowed.size());
-                    response.flush();
+            synchronized (postsFollowed) {
+                // Invio il numero di post all'interno del blog
+                response.println(postsFollowed.size());
+                response.flush();
 
-                    for (Post p : postsFollowed) {
-                        // Invio i post nel blog
-                        synchronized (p) {
-                            response.println(gsonExpose.toJson(p, postType));
-                        }
-                        response.flush();
+                for (Post p : postsFollowed) {
+                    // Invio i post nel blog
+                    synchronized (p) {
+                        response.println(gsonExpose.toJson(p, postType));
                     }
+                    response.flush();
                 }
             }
         }
@@ -669,14 +665,14 @@ public class UserManager implements Runnable {
         // Creo il post
         Post newPost = new Post(usernameLogin, title, content, idGenerator);
         // Aggiungo il post alla lista delle interazioni
-        listInteractions.addPost(newPost.getId());
+        listInteractions.addPost(newPost.getId(), usernameLogin);
         // Inserisco il post nel blog dell'utente connesso, e nella lista di tutti i post
         Vector<Post> blog = blogs.get(usernameLogin);
 
-        synchronized (blog) {
-            synchronized (posts) {
+        synchronized (posts) {
+            synchronized (blog) {
+                posts.put(newPost.getId(), newPost);
                 blog.add(newPost);
-                posts.putIfAbsent(newPost.getId(), newPost);
             }
         }
 
@@ -686,7 +682,6 @@ public class UserManager implements Runnable {
         response.flush();
     }
 
-    // SINCRONIZZAZIONE NON FINITA ++++++++++++++++++++++++++++++++++++++++++++++++++++++
     private void deletePost(Integer id, PrintWriter response) {
         // Argomento null
         if (id == null) {
@@ -718,15 +713,18 @@ public class UserManager implements Runnable {
             response.flush();
             return;
         }
-        // Elimino il post nel blog
-        posts.remove(p.getId());
-        Vector<Post> blog = blogs.get(usernameLogin);
-        blog.remove(p);
-        // Elimino il post nei blog degli utenti cha hanno eseguito il rewin
-        synchronized (p) {
-            for (String user : p.getUsersRewin()) {
-                blog = blogs.get(user);
-                blog.remove(p);
+        // Elimino il post
+        synchronized (posts) {
+            posts.remove(p.getId());
+            // Rimuovo il post dal blog
+            Vector<Post> blog = blogs.get(usernameLogin);
+            blog.remove(p);
+            // Elimino il post nei blog degli utenti cha hanno eseguito il rewin
+            synchronized (p) {
+                for (String user : p.getUsersRewin()) {
+                    blog = blogs.get(user);
+                    blog.remove(p);
+                }
             }
         }
         // Elimino il post dalla lista delle interazioni
@@ -761,44 +759,40 @@ public class UserManager implements Runnable {
             response.flush();
             return;
         }
-        // Controllo se l'autore del post non è l'utente connesso
+        // Controllo se l'autore del post è l'utente connesso
         if (!p.getAuthor().equals(usernameLogin)) {
-            Vector<String> listFollowing = followings.get(usernameLogin);
-            // Controllo se l'utente collegato non segue l'autore del post
+            ArrayList<String> listFollowing = followings.get(usernameLogin);
+            // Controllo se l'utente collegato segue l'autore del post
             if (!listFollowing.contains(p.getAuthor())) {
                 // Cerco il post all'interno del feed
-                Vector<Post> postsFollowed;
                 boolean find = false;
 
-                synchronized (listFollowing) {
-                    Iterator<String> listFollowingIterator = listFollowing.iterator();
+                Iterator<String> listFollowingIterator = listFollowing.iterator();
+                Vector<Post> postsFollowed;
+                Iterator<Post> postFollowedIterator;
 
-                    while (listFollowingIterator.hasNext() && !find) {
-                        // Recupero il blog di ogni followed
-                        postsFollowed = blogs.get(listFollowingIterator.next());
+                while (listFollowingIterator.hasNext() && !find) {
+                    // Recupero il blog di ogni followed
+                    postsFollowed = blogs.get(listFollowingIterator.next());
 
-                        synchronized (postsFollowed) {
-                            Iterator<Post> postFollowedIterator = postsFollowed.iterator();
+                    synchronized (postsFollowed) {
+                        postFollowedIterator = postsFollowed.iterator();
 
-                            while (postFollowedIterator.hasNext() && !find) {
-                                if (postFollowedIterator.next().getId().equals(p.getId())) {
-                                    find = true;
-                                }
+                        while (postFollowedIterator.hasNext() && !find) {
+                            if (postFollowedIterator.next().getId().equals(p.getId())) {
+                                find = true;
                             }
                         }
                     }
                 }
-                // Cerco il post nel blog (post rewin)
+
+                // Se non trovato cerco il post nel blog (rewin post)
                 if (!find) {
-                    Vector<Post> blog = blogs.get(usernameLogin);
+                    HashSet<String> usersRewin = p.getUsersRewin();
 
-                    synchronized (blog) {
-                        Iterator<Post> postIterator = blog.iterator();
-
-                        while (postIterator.hasNext() && !find) {
-                            if (postIterator.next().getId().equals(p.getId())) {
-                                find = true;
-                            }
+                    synchronized (p) {
+                        if (usersRewin.contains(usernameLogin)) {
+                            find = true;
                         }
                     }
                 }
@@ -839,74 +833,70 @@ public class UserManager implements Runnable {
             response.flush();
             return;
         }
-        // Recupero il post
-        Post p = posts.get(id);
-        // Controllo se esiste
-        if (p == null) {
-            response.println(416);
-            response.println("errore, post " + id + " non esiste");
-            response.flush();
-            return;
-        }
 
-        boolean find = false;
+        synchronized (posts) {
+            // Recupero il post
+            Post p = posts.get(id);
+            // Controllo se esiste
+            if (p == null) {
+                response.println(416);
+                response.println("errore, post " + id + " non esiste");
+                response.flush();
+                return;
+            }
 
-        // Controllo se l'utente collegato non segue l'autore del post
-        Vector<String> listFollowing = followings.get(usernameLogin);
-        if (!listFollowing.contains(p.getAuthor())) {
-            // Cerco il post all'interno del feed
-            Vector<Post> postsFollowed;
+            // Controllo se è già stato eseguito il rewin
+            HashSet<String> usersRewin = p.getUsersRewin();
 
-            synchronized (listFollowing) {
+            synchronized (p) {
+                if (usersRewin.contains(usernameLogin)) {
+                    response.println(418);
+                    response.println("post (id = " + id + ") già presente nel blog");
+                    response.flush();
+                    return;
+                }
+            }
+
+            // Controllo se l'utente collegato segue l'autore del post
+            ArrayList<String> listFollowing = followings.get(usernameLogin);
+
+            if (!listFollowing.contains(p.getAuthor())) {
+                // Cerco il post all'interno del feed
+                boolean find = false;
+
                 Iterator<String> listFollowingIterator = listFollowing.iterator();
+                Vector<Post> postsFollowed;
+                Iterator<Post> postFollowedIterator;
 
                 while (listFollowingIterator.hasNext() && !find) {
                     // Recupero il blog di ogni followed
                     postsFollowed = blogs.get(listFollowingIterator.next());
 
                     synchronized (postsFollowed) {
-                        Iterator<Post> postFollowedIterator = postsFollowed.iterator();
+                        postFollowedIterator = postsFollowed.iterator();
 
                         while (postFollowedIterator.hasNext() && !find) {
                             if (postFollowedIterator.next().getId().equals(p.getId())) {
-                                    find = true;
+                                find = true;
                             }
                         }
                     }
                 }
+
+                // Post non trovato
+                if (!find) {
+                    response.println(417);
+                    response.println("post (id = " + id + ") non appartiene al tuo feed");
+                    response.flush();
+                    return;
+                }
             }
-            // Post non trovato
-            if (!find) {
-                response.println(417);
-                response.println("post (id = " + id + ") non appartiene al tuo feed");
-                response.flush();
-                return;
-            }
+            // Inserisco il post nel blog
+            Vector<Post> blog = blogs.get(usernameLogin);
+            blog.add(p);
+            // Inserisco nel post che usernameLogin ha eseguito il rewin
+            p.addUserRewin(usernameLogin);
         }
-        // Inserisco il post nel blog se non presente
-        Vector<Post> blog = blogs.get(usernameLogin);
-        Iterator<Post> blogIterator = blog.iterator();
-        find = false;
-
-        synchronized (blog) {
-            while (blogIterator.hasNext() && !find) {
-                    if (blogIterator.next().getId().equals(p.getId())) {
-                        find = true;
-                    }
-            }
-
-            if (!find) {
-                // Inserisco nel post che usernameLogin ha eseguito il rewin
-                p.addUserRewin(usernameLogin);
-                blog.add(p);
-            } else {
-                response.println(418);
-                response.println("post (id = " + id + ") già presente nel blog");
-                response.flush();
-                return;
-            }
-        }
-
         // ok
         response.println(200);
         response.println("eseguito il rewin del post (id = " + id + ")");
@@ -944,31 +934,31 @@ public class UserManager implements Runnable {
             response.flush();
             return;
         }
-        // Controllo se l'utente collegato non segue l'autore del post
-        Vector<String> listFollowing = followings.get(usernameLogin);
+        // Controllo se l'utente collegato segue l'autore del post
+        ArrayList<String> listFollowing = followings.get(usernameLogin);
+
         if (!listFollowing.contains(p.getAuthor())) {
             // Cerco il post all'interno del feed
             Vector<Post> postsFollowed;
             boolean find = false;
 
-            synchronized (listFollowing) {
-                Iterator<String> listFollowingIterator = listFollowing.iterator();
+            Iterator<String> listFollowingIterator = listFollowing.iterator();
 
-                while (listFollowingIterator.hasNext() && !find) {
-                    // Recupero il blog di ogni followed
-                    postsFollowed = blogs.get(listFollowingIterator.next());
+            while (listFollowingIterator.hasNext() && !find) {
+                // Recupero il blog di ogni followed
+                postsFollowed = blogs.get(listFollowingIterator.next());
 
-                    synchronized (postsFollowed) {
-                        Iterator<Post> postFollowedIterator = postsFollowed.iterator();
+                synchronized (postsFollowed) {
+                    Iterator<Post> postFollowedIterator = postsFollowed.iterator();
 
-                        while (postFollowedIterator.hasNext() && !find) {
-                            if (postFollowedIterator.next().getId().equals(p.getId())) {
-                                find = true;
-                            }
+                    while (postFollowedIterator.hasNext() && !find) {
+                        if (postFollowedIterator.next().getId().equals(p.getId())) {
+                            find = true;
                         }
                     }
                 }
             }
+
             // Post non trovato
             if (!find) {
                 response.println(417);
@@ -1035,30 +1025,29 @@ public class UserManager implements Runnable {
             return;
         }
         // Controllo se l'utente collegato non segue l'autore del post
-        Vector<String> listFollowing = followings.get(usernameLogin);
+        ArrayList<String> listFollowing = followings.get(usernameLogin);
         if (!listFollowing.contains(p.getAuthor())) {
             // Cerco il post all'interno del feed
             Vector<Post> postsFollowed;
             boolean find = false;
 
-            synchronized (listFollowing) {
-                Iterator<String> listFollowingIterator = listFollowing.iterator();
+            Iterator<String> listFollowingIterator = listFollowing.iterator();
 
-                while (listFollowingIterator.hasNext() && !find) {
-                    // Recupero il blog di ogni followed
-                    postsFollowed = blogs.get(listFollowingIterator.next());
+            while (listFollowingIterator.hasNext() && !find) {
+                // Recupero il blog di ogni followed
+                postsFollowed = blogs.get(listFollowingIterator.next());
 
-                    synchronized (postsFollowed) {
-                        Iterator<Post> postFollowedIterator = postsFollowed.iterator();
+                synchronized (postsFollowed) {
+                    Iterator<Post> postFollowedIterator = postsFollowed.iterator();
 
-                        while (postFollowedIterator.hasNext() && !find) {
-                            if (postFollowedIterator.next().getId().equals(p.getId())) {
-                                find = true;
-                            }
+                    while (postFollowedIterator.hasNext() && !find) {
+                        if (postFollowedIterator.next().getId().equals(p.getId())) {
+                            find = true;
                         }
                     }
                 }
             }
+
             // Post non trovato
             if (!find) {
                 response.println(417);
@@ -1133,7 +1122,7 @@ public class UserManager implements Runnable {
             response.println(btc);
             response.flush();
         } catch (NumberFormatException | IOException e) {
-            response.println(502);
+            response.println(501);
             response.println("errore, conversione non riuscita");
             response.flush();
         }
