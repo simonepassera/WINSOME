@@ -1,3 +1,7 @@
+// @Author Simone Passera
+
+// Oggetto contenente codice e messaggio di risposta
+// restituito dall'oggetto remoto WinsomeRMIServices
 public class CodeReturn {
     private final Integer code;
     private final String message;

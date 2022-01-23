@@ -1,8 +1,6 @@
 // @Author Simone Passera
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import com.google.gson.JsonSyntaxException;
+import com.google.gson.*;
 import com.google.gson.reflect.TypeToken;
 
 import java.io.*;
@@ -66,7 +64,7 @@ public class ServerMain {
 
         // Leggo il file di configurazione
         readConf(args[0]);
-        // Leggo il file di salvataggio e inizializzo le strutture dati
+        // Leggo il file di salvataggio se esiste e inizializzo le strutture dati
         readData(DATA_PATH);
         // Creo il registry
         Registry registry = null;
@@ -77,8 +75,6 @@ public class ServerMain {
             System.err.println("Creazione del registry: " + e.getMessage());
             System.exit(1);
         }
-        // inizializzo le strutture dati
-        readData(DATA_PATH);
         // Creo ed esporto l'oggetto remoto
         WinsomeRMIServices rmiServices = null;
 
@@ -105,9 +101,10 @@ public class ServerMain {
         threadDataManager.start();
         // Creo il listen socket sulla porta specificata nel file di configurazione
         try (ServerSocket listenSocket = new ServerSocket(PORT_TCP)) {
+            // Creo il thread pool (corePoolSize = 10, maximumPoolSize = inf, KeepAliveTime = 60s)
             ExecutorService pool = new ThreadPoolExecutor(10, Integer.MAX_VALUE, 60, TimeUnit.SECONDS, new SynchronousQueue<>());
             System.out.println("Server avviato ...");
-            // Creo un thread per catturate 'exit' da tastiera
+            // Creo un thread per catturate 'exit' da tastiera e chiudere il socket
             Thread exitThread = new Thread() {
                 @Override
                 public void run() {
@@ -130,56 +127,58 @@ public class ServerMain {
                     }
                 }
             };
-
+            // Avvio il thread exit
             exitThread.start();
+
             Socket client;
 
             while (true) {
                 try {
+                    //  Attendo un client
                     client = listenSocket.accept();
                 } catch (IOException exit) {
+                    // Esco dal loop (socket chiuso)
                     break;
                 }
-
+                // Avvio un thread nel pool per gestire la connessione con il client
                 pool.execute(new UserManager(client, users, tags, stubs, followers, followings, blogs, posts, wallets, listInteractions, connectedUsers, idGenerator, MULTICAST_ADDRESS.getHostAddress(), MULTICAST_PORT));
             }
-
+            // Termino il thread pool
             pool.shutdown();
-            boolean poolTermination = true;
-
+            boolean poolTermination = false;
+            // Aspetto per 'TERMINATION_TIMEOUT' secondi la terminazione di tutti i client
             try {
                 poolTermination = pool.awaitTermination(TERMINATION_TIMEOUT, TimeUnit.SECONDS);
             } catch (InterruptedException e) {
                 e.printStackTrace();
                 System.exit(1);
             }
-
+            // Forzo l'uscita se ci sono ancora client
             if (!poolTermination) pool.shutdownNow();
-
             // Termino il servizio RMI
             UnicastRemoteObject.unexportObject(rmiServices, true);
-
+            // Aspetto per l'ultima volta 'TERMINATION_TIMEOUT' secondi la terminazione degli ultimi client
             try {
                 pool.awaitTermination(TERMINATION_TIMEOUT, TimeUnit.SECONDS);
             } catch (InterruptedException e) {
                 e.printStackTrace();
                 System.exit(1);
             }
-
+            // Termino il thread che calcola le ricompense, dopo aver eseguito un ultima iterazione
             threadRewardManager.interrupt();
 
             try {
                 threadRewardManager.join();
             } catch (InterruptedException ignored) {
             }
-
+            // Salvo i dati del sistema sul file di salvataggio e termino il thread che ha questo compito
             threadDataManager.interrupt();
 
             try {
                 threadDataManager.join();
             } catch (InterruptedException ignored) {
             }
-
+            // Esco
             System.exit(0);
         } catch (IOException e) {
             e.printStackTrace();
@@ -187,6 +186,7 @@ public class ServerMain {
         }
     }
 
+    // Legge il file di configurazione
     private static void readConf(String path) {
         try (FileReader fileReader = new FileReader(path);
              BufferedReader configFile = new BufferedReader(fileReader)) {
@@ -326,6 +326,7 @@ public class ServerMain {
         }
     }
 
+    // Legge il file di salvataggio se esiste e inizializza le strutture dati
     private static void readData(String path) {
         try (FileReader fileReader = new FileReader(path);
              BufferedReader dataFile = new BufferedReader(fileReader)) {
@@ -365,6 +366,7 @@ public class ServerMain {
             if (json.equals("")) { throw new JsonSyntaxException("Oggetto json stringa vuota"); }
             idGenerator = gson.fromJson(json, AtomicInteger.class);
         } catch (FileNotFoundException e) {
+            // Il file non esiste e inizializzo le strutture con i valori di default
             users = new ConcurrentHashMap<>();
             tags = new ConcurrentHashMap<>();
             followings = new ConcurrentHashMap<>();
@@ -381,7 +383,7 @@ public class ServerMain {
             System.err.println(e.getMessage());
             System.exit(1);
         }
-
+        // Strutture dati utili a runtime
         stubs = new ConcurrentHashMap<>();
         connectedUsers = new Vector<>();
     }

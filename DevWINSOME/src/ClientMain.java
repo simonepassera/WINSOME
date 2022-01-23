@@ -1,7 +1,6 @@
 // @Author Simone Passera
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
+import com.google.gson.*;
 import com.google.gson.reflect.TypeToken;
 
 import java.io.*;
@@ -13,8 +12,7 @@ import java.rmi.registry.*;
 import java.security.*;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.regex.*;
 
 public class ClientMain {
     // Indirizzo del server WINSOME
@@ -41,14 +39,16 @@ public class ClientMain {
     private static NotifyFollowersInterface callback = null;
     // Tipo dell'oggetto restituito dai metodi remoti
     private static Type CodeReturnType;
+    // Tipo post
+    private static Type postType;
+    // Tipo wallet
+    private static Type walletType;
     // Oggetto gson
     private static Gson gson;
     // Oggetto gson che considera le annotazioni
     private static Gson gsonExpose;
     // Username connesso
     private static String usernameConnected = null;
-    // Flag calcolo ricompense avvenuto
-    private static AtomicBoolean reward = null;
 
     public static void main(String[] args) {
         // Controllo se esiste il file di configurazione
@@ -109,9 +109,17 @@ public class ClientMain {
                 System.exit(1);
             }
 
-            int multicastPort = Integer.parseInt(inResponse.readLine());
-            reward = new AtomicBoolean(false);
-            // Avvio il thread che riceve aggiornamenti multicast
+            int multicastPort = 0;
+
+            try {
+                multicastPort = Integer.parseInt(inResponse.readLine());
+            } catch (NumberFormatException e) {
+                System.err.println("Porta di multicast invalida");
+                System.exit(1);
+            }
+            // Flag calcolo ricompense avvenuto
+            AtomicBoolean reward = new AtomicBoolean(false);
+            // Avvio il thread che riceve la notifica relativa calcolo delle ricompense tramite il gruppo multicast
             WalletUpdate walletUpdate = new WalletUpdate(multicastAddress, multicastPort, reward);
             Thread threadWalletUpdate = new Thread(walletUpdate);
             threadWalletUpdate.start();
@@ -123,15 +131,18 @@ public class ClientMain {
             System.out.print("\033[H\033[2J");
             System.out.flush();
             System.out.println("\033[1m*** WINSOME ***\033[22m");
-            // Leggo i comandi
+            // Inizializzo variabili di supporto
             CodeReturnType = new TypeToken<CodeReturn>(){}.getType();
+            postType = new TypeToken<Post>(){}.getType();
+            walletType = new TypeToken<Wallet>(){}.getType();
             gson = new Gson();
             gsonExpose = new GsonBuilder().excludeFieldsWithoutExposeAnnotation().create();
             Pattern p = Pattern.compile("([^\"]\\S*|\".+?\")\\s*");
             Matcher m;
             int id;
-
+            // Leggo i comandi da stdin
             while (true) {
+                // Controllo se è stato eseguito il calcolo delle ricompense
                 if (reward.compareAndSet(true, false)) System.out.println("\033[1m< NOTIFICA : eseguito il calcolo delle ricompense (comando 'wallet' per info)\033[22m");
                 System.out.flush();
                 System.out.print("> ");
@@ -141,11 +152,11 @@ public class ClientMain {
                     System.out.flush();
                     System.out.print("> ");
                 }
-
+                // Utilizzo le espressioni regolari per considerare un unico comando se compreso tra apici
                 m = p.matcher(line);
                 command.clear();
                 while (m.find()) command.add(m.group(1).replace("\"", ""));
-
+                // Eseguo la funzione che implementa il comando richiesto
                 switch (command.get(0)) {
                     case "help": help(); break;
                     case "verbose":
@@ -154,7 +165,7 @@ public class ClientMain {
                         break;
                     case "register":
                         if (command.size() < 4 || command.size() > 8) { System.out.println("\033[1m<\033[22m \033[1mregister\033[22m <username [\033[1mmax 15\033[22m]> <password> <tags [\033[1mmax 5\033[22m]>"); break; }
-
+                        // Lista dei tag
                         ArrayList<String> tags = new ArrayList<>();
                         for (int i = 3; i < command.size(); i++) tags.add(command.get(i));
 
@@ -164,7 +175,7 @@ public class ClientMain {
                         if (command.size() < 3) { System.out.println("\033[1m<\033[22m \033[1mlogin\033[22m <username> <password>"); break; }
                         if (login(command.get(1), command.get(2)) == 0) {
                             listFollowers = new Vector<>();
-                            // Creo l'oggetto usato dal server
+                            // Creo l'oggetto callback usato dal server
                             try {
                                 callback = new NotifyFollowers(listFollowers);
                             } catch (RemoteException e) {
@@ -190,6 +201,7 @@ public class ClientMain {
                         break;
                     case "logout":
                         if (logout() == 0) {
+                            // Se logout ha avuto successo, rimuovo l'utente dal servizio di callback
                             CodeReturn code = null;
 
                             try {
@@ -347,6 +359,7 @@ public class ClientMain {
         }
     }
 
+    // Legge il file di configurazione
     private static void readConf(String path) {
         try (FileReader fileReader = new FileReader(path);
              BufferedReader configFile = new BufferedReader(fileReader)) {
@@ -472,20 +485,23 @@ public class ClientMain {
 
         try {
             if (printResponse() == 200) {
+                // Termino il thread che riceve la notifica di avvenuto calcolo delle ricompense
                 walletUpdate.exit();
                 try {
                     threadWalletUpdate.join();
                 } catch (InterruptedException ignore) {}
+                // Successo
                 return 0;
             }
         } catch (IOException | NumberFormatException e) {
             System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
         }
-
+        // Errore
         return 1;
     }
 
     private static void register(String username, String password, ArrayList<String> tags) {
+        // Ottengo la password criptata con SHA-256
         String hexPass;
 
         try {
@@ -494,7 +510,7 @@ public class ClientMain {
             System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
             return;
         }
-
+        // Eseguo il metodo register invocato sull'oggetto remoto del server
         CodeReturn code;
 
         try {
@@ -509,6 +525,7 @@ public class ClientMain {
     }
 
     private static int login(String username, String password) {
+        // Ottengo la password criptata con SHA-256
         String hexPass;
 
         try {
@@ -533,8 +550,9 @@ public class ClientMain {
 
         if (code == 200) {
             usernameConnected = username;
+            // Utente connesso
             return 0;
-        } else return 1;
+        } else return 1; // Errore
     }
 
     private static int logout() {
@@ -550,8 +568,9 @@ public class ClientMain {
         }
 
         if (code == 200) {
+            // Eseguito il logout
             return 0;
-        } else return 1;
+        } else return 1; // Errore
     }
 
     private static void listUsers() {
@@ -568,7 +587,7 @@ public class ClientMain {
             System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
             return;
         }
-
+        // Mi aspetto di ricevere cod. 201 (richiesta accettata ma non ancora terminata)
         if (code != 201){
             if (verbose) System.out.println("\033[1m<\033[22m [\033[1m" + code + "\033[22m] " + message);
             else System.out.println("\033[1m<\033[22m " + message);
@@ -577,14 +596,14 @@ public class ClientMain {
         } else {
             HashMap<String, ArrayList<String>> listUsersTags;
             Type hashMapType = new TypeToken<HashMap<String, ArrayList<String>>>(){}.getType();
-
+            // Ottengo la mappa (utente, lista di tag)
             try {
                 listUsersTags = gson.fromJson(inResponse.readLine(), hashMapType);
             } catch (IOException e) {
                 System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
                 return;
             }
-
+            // Controllo se è vuota
             if (listUsersTags.isEmpty()) {
                 System.out.println("\033[1m<\033[22m non ci sono utenti con almeno un tag in comune!");
             } else {
@@ -592,7 +611,7 @@ public class ClientMain {
                 System.out.println("\033[1m<\033[22m ------------------------------------------------------");
 
                 ArrayList<String> listTags;
-
+                // Stampo utente | tag1, tag2, tag3, tag4, tag5
                 for (String name : listUsersTags.keySet()) {
                     System.out.print("\033[1m<\033[22m    " + name);
                     System.out.print("\033[24G|   ");
@@ -609,7 +628,8 @@ public class ClientMain {
     }
 
     private static void listFollowers() {
-        if (listFollowers == null) {
+        // Controllo se c'è un utente connesso e quindi registrato al servizio di callback
+        if (usernameConnected == null) {
             System.out.println("\033[1m<\033[22m errore, nessun utente connesso");
         } else {
             if (listFollowers.isEmpty()) {
@@ -617,7 +637,7 @@ public class ClientMain {
             } else {
                 System.out.println("\033[1m<\033[22m         Followers        ");
                 System.out.println("\033[1m<\033[22m -------------------------");
-
+                // Stampo tutti i nomi dei followers
                 synchronized (listFollowers) {
                     for (String name : listFollowers) {
                         System.out.println("\033[1m<\033[22m    " + name);
@@ -641,7 +661,7 @@ public class ClientMain {
             System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
             return;
         }
-
+        // Mi aspetto di ricevere cod. 201 (richiesta accettata ma non ancora terminata)
         if (code != 201){
             if (verbose) System.out.println("\033[1m<\033[22m [\033[1m" + code + "\033[22m] " + message);
             else System.out.println("\033[1m<\033[22m " + message);
@@ -650,7 +670,7 @@ public class ClientMain {
         } else {
             ArrayList<String> listUsers;
             Type arrayListType = new TypeToken<ArrayList<String>>(){}.getType();
-
+            // Ottengo la lista dei nomi
             try {
                 listUsers = gson.fromJson(inResponse.readLine(), arrayListType);
             } catch (IOException e) {
@@ -663,7 +683,7 @@ public class ClientMain {
             } else {
                 System.out.println("\033[1m<\033[22m         Utente");
                 System.out.println("\033[1m<\033[22m ----------------------");
-
+                // Stampo tutti gli utenti che la persona connessa segue
                 for (String name : listUsers) {
                     System.out.println("\033[1m<\033[22m    " + name);
                 }
@@ -709,7 +729,7 @@ public class ClientMain {
             System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
             return;
         }
-
+        // Mi aspetto di ricevere cod. 201 (richiesta accettata ma non ancora terminata)
         if (code != 201){
             if (verbose) System.out.println("\033[1m<\033[22m [\033[1m" + code + "\033[22m] " + message);
             else System.out.println("\033[1m<\033[22m " + message);
@@ -717,22 +737,20 @@ public class ClientMain {
             if (code == 502) System.exit(0);
         } else {
             int size;
-
+            // Ottengo il numero dei post all'interno del blog
             try {
                 size = Integer.parseInt(inResponse.readLine());
             } catch (IOException | NumberFormatException e) {
                 System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
                 return;
             }
-
+            // Controllo se non ci sono post
             if (size == 0) {
                 System.out.println("\033[1m<\033[22m blog vuoto");
                 return;
             }
-
+            // Stampo tutti i post nel blog
             Post post;
-            // Tipo post
-            Type postType = new TypeToken<Post>(){}.getType();
 
             System.out.println("\033[1m<\033[22m         Id\033[21G|        Autore\033[43G|        Titolo");
             System.out.println("\033[1m<\033[22m -----------------------------------------------------------------");
@@ -762,7 +780,7 @@ public class ClientMain {
             System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
             return;
         }
-
+        // Mi aspetto di ricevere cod. 201 (richiesta accettata ma non ancora terminata)
         if (code != 201){
             if (verbose) System.out.println("\033[1m<\033[22m [\033[1m" + code + "\033[22m] " + message);
             else System.out.println("\033[1m<\033[22m " + message);
@@ -770,28 +788,26 @@ public class ClientMain {
             if (code == 502) System.exit(0);
         } else {
             int numFollowing;
-
+            // Ottengo il numero delle persone che la persona connessa segue
             try {
                 numFollowing = Integer.parseInt(inResponse.readLine());
             } catch (IOException | NumberFormatException e) {
                 System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
                 return;
             }
-
+            // Controllo se non segue nessuno
             if (numFollowing == 0) {
                 System.out.println("\033[1m<\033[22m feed vuoto");
                 return;
             }
-
             Post post;
-            // Tipo post
-            Type postType = new TypeToken<Post>(){}.getType();
 
             int numPosts;
             boolean firstPost = true;
-
+            // Stampo tutti i post per ogni utente che segue
             for(int i = 0; i < numFollowing; i++) {
                 try {
+                    // Ottengo il numero dei post all'interno del blog di un utente che segue
                     numPosts = Integer.parseInt(inResponse.readLine());
 
                     if (numPosts != 0 && firstPost) {
@@ -799,7 +815,7 @@ public class ClientMain {
                         System.out.println("\033[1m<\033[22m -----------------------------------------------------------------");
                         firstPost = false;
                     }
-
+                    // Stampo i post nel blog
                     for (int k = 0; k < numPosts; k++) {
                         post = gsonExpose.fromJson(inResponse.readLine(), postType);
                         System.out.println("\033[1m<\033[22m         " + post.getId() + "\033[21G|   " + post.getAuthor() + "\033[43G|   " + post.getTitle());
@@ -809,7 +825,8 @@ public class ClientMain {
                     return;
                 }
             }
-
+            // Se l'utente segue almeno una persona, ma non ci sono
+            // post nei blog degli utenti seguiti il feed è vuoto
             if (firstPost) System.out.println("\033[1m<\033[22m feed vuoto");
         }
     }
@@ -854,7 +871,7 @@ public class ClientMain {
             System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
             return;
         }
-
+        // Mi aspetto di ricevere cod. 201 (richiesta accettata ma non ancora terminata)
         if (code != 201){
             if (verbose) System.out.println("\033[1m<\033[22m [\033[1m" + code + "\033[22m] " + message);
             else System.out.println("\033[1m<\033[22m " + message);
@@ -862,16 +879,14 @@ public class ClientMain {
             if (code == 502) System.exit(0);
         } else {
             Post post;
-            // Tipo post
-            Type postType = new TypeToken<Post>(){}.getType();
-
+            // Ottengo il post completo
             try {
                 post = gson.fromJson(inResponse.readLine(), postType);
             } catch (IOException e) {
                 System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
                 return;
             }
-
+            // Stampo il post
             System.out.println("\033[1m<\033[22m Autore: " + post.getAuthor());
             System.out.println("\033[1m<\033[22m Titolo: " + post.getTitle());
             System.out.println("\033[1m<\033[22m Contenuto: " + post.getText());
@@ -945,7 +960,7 @@ public class ClientMain {
             System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
             return;
         }
-
+        // Mi aspetto di ricevere cod. 201 (richiesta accettata ma non ancora terminata)
         if (code != 201){
             if (verbose) System.out.println("\033[1m<\033[22m [\033[1m" + code + "\033[22m] " + message);
             else System.out.println("\033[1m<\033[22m " + message);
@@ -953,21 +968,18 @@ public class ClientMain {
             if (code == 502) System.exit(0);
         } else {
             Wallet wallet;
-            // Tipo wallet
-            Type walletType = new TypeToken<Wallet>(){}.getType();
-
+            // Recupero il portafoglio
             try {
                 wallet = gson.fromJson(inResponse.readLine(), walletType);
             } catch (IOException e) {
                 System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
                 return;
             }
-
+            // Stampo valore e transazioni
             System.out.println("\033[1m<\033[22m Valore: " + wallet.getWincoin() + " Wincoin");
+            System.out.print("\033[1m<\033[22m Transazioni:");
 
             ArrayList<String> transactions = wallet.getTransactions();
-
-            System.out.print("\033[1m<\033[22m Transazioni:");
 
             if (transactions.size() == 0)  System.out.println(" 0");
             else {
@@ -993,7 +1005,7 @@ public class ClientMain {
             System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
             return;
         }
-
+        // Mi aspetto di ricevere cod. 201 (richiesta accettata ma non ancora terminata)
         if (code != 201){
             if (verbose) System.out.println("\033[1m<\033[22m [\033[1m" + code + "\033[22m] " + message);
             else System.out.println("\033[1m<\033[22m " + message);
@@ -1001,18 +1013,20 @@ public class ClientMain {
             if (code == 502) System.exit(0);
         } else {
             double bitcoin;
-
+            // Recupero il valore convertito in bitcoin
             try {
                 bitcoin = Double.parseDouble(inResponse.readLine());
             } catch (IOException | NumberFormatException e) {
                 System.err.println("\033[1m<\033[22m errore: " + e.getMessage());
                 return;
             }
-
+            // Stampo il valore
             System.out.println("\033[1m<\033[22m Valore: " + bitcoin + " BTC");
         }
     }
 
+    // Funzione per leggere dal server codice e messaggio di risposta
+    // @Return codice di risposta
     private static int printResponse() throws NumberFormatException, IOException {
         int code;
         String message;

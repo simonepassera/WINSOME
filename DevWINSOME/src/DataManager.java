@@ -1,49 +1,48 @@
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
+// @Author Simone Passera
+
+import com.google.gson.*;
 import com.google.gson.reflect.TypeToken;
 
-import javax.sql.rowset.serial.SerialStruct;
 import java.io.*;
 import java.lang.reflect.Type;
-import java.util.ArrayList;
-import java.util.Map;
-import java.util.Vector;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
+// Thread che salva lo stato del sistema a intervalli regolari
 public class DataManager implements Runnable {
     // Stabilisce ogni quanti secondi salvare i dati
-    private long save_timer;
+    private final long save_timer;
     // Percorso del file di salvataggio
-    private String data_path;
+    private final String data_path;
     // Mappa (username, password)
-    private ConcurrentHashMap<String, String> users;
+    private final ConcurrentHashMap<String, String> users;
     // Mappa (username, tags)
-    private ConcurrentHashMap<String, ArrayList<String>> tags;
+    private final ConcurrentHashMap<String, ArrayList<String>> tags;
     // Mappa (username, followers)
-    private ConcurrentHashMap<String, ArrayList<String>> followers;
+    private final ConcurrentHashMap<String, ArrayList<String>> followers;
     // Mappa (username, following)
-    private ConcurrentHashMap<String, ArrayList<String>> followings;
+    private final ConcurrentHashMap<String, ArrayList<String>> followings;
     // Mappa (username, blog)
-    private ConcurrentHashMap<String, Vector<Post>> blogs;
+    private final ConcurrentHashMap<String, Vector<Post>> blogs;
     // Mappa (idPost, post)
-    private ConcurrentHashMap<Integer, Post> posts;
+    private final ConcurrentHashMap<Integer, Post> posts;
     // Mappa (username, wallet)
-    private ConcurrentHashMap<String, Wallet> wallets;
-    // Lista delle interazioni usata per la sincronizzazione
+    private final ConcurrentHashMap<String, Wallet> wallets;
+    // Lista delle interazioni
     private final ListInteractions listInteractions;
     // Generatore id per un post
-    private AtomicInteger idGenerator;
+    private final AtomicInteger idGenerator;
     // Gson
-    private Gson gson;
+    private final Gson gson;
     // Tipi
-    Type usersType;
-    Type tagsType;
-    Type arrayListType;
-    Type blogType;
-    Type postType;
-    Type walletsType;
-    Type listInteractionsType;
+    private final Type usersType;
+    private final Type tagsType;
+    private final Type arrayListType;
+    private final Type blogType;
+    private final Type postType;
+    private final Type walletsType;
+    private final Type listInteractionsType;
 
     public DataManager(String data_path, int save_timer, ConcurrentHashMap<String, String> users, ConcurrentHashMap<String, ArrayList<String>> tags, ConcurrentHashMap<String, ArrayList<String>> followers, ConcurrentHashMap<String, ArrayList<String>> followings, ConcurrentHashMap<String, Vector<Post>> blogs, ConcurrentHashMap<Integer, Post> posts, ConcurrentHashMap<String, Wallet> wallets, ListInteractions listInteractions, AtomicInteger idGenerator) {
         this.data_path = data_path;
@@ -72,17 +71,23 @@ public class DataManager implements Runnable {
         boolean exit = false;
 
         while (!exit) {
+            // Controllo se il thread è stato interrotto
             if (!Thread.currentThread().isInterrupted()) {
                 try {
+                    // Sospendo il thread per "timer" secondi
                     Thread.sleep(save_timer * 1000);
                 } catch (InterruptedException e) {
+                    // Thread interrotto
                     exit = true;
                 }
             } else {
+                // Thread interrotto
                 exit = true;
             }
 
+            // Apro il file di salvataggio
             try (PrintWriter dataFile = new PrintWriter(new BufferedWriter(new FileWriter(data_path)))) {
+                // Salvo le strutture dati
                 synchronized (users) {
                     dataFile.println(gson.toJson(users, usersType));
                     dataFile.println(gson.toJson(tags, tagsType));

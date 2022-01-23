@@ -1,9 +1,9 @@
 // @Author Simone Passera
 
-import java.rmi.Remote;
-import java.rmi.RemoteException;
+import java.rmi.*;
 import java.util.ArrayList;
 
+// Interfaccia dell'oggetto remoto esportato dal server Winsome
 public interface WinsomeRMIServices extends Remote {
     // Inserisce un nuovo utente, tags è una lista di massimo 5 tag
     // @Return CodeReturn

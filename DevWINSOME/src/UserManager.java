@@ -1,25 +1,24 @@
 // @Author Simone Passera
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
+import com.google.gson.*;
 import com.google.gson.reflect.TypeToken;
 
 import java.io.*;
 import java.lang.reflect.Type;
-import java.net.Socket;
-import java.net.URL;
+import java.net.*;
 import java.rmi.RemoteException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
+// Thread che gestisce le richieste di un client per l'intera durata della connessione
 public class UserManager implements Runnable {
     // Socket per la connessione persistente con il client
     private final Socket user;
     // Ip e porta gruppo di multicast
     private final String multicastAddress;
     private final int multicastPort;
-    // Stringa che contiene lo username se l'utente ha effettuato il login, oppure null in caso contrario
+    // Stringa che contiene il nome dell'utente se ha effettuato il login, oppure null in caso contrario
     private String usernameLogin = null;
     // Mappa (username, password)
     private final ConcurrentHashMap<String, String> users;
@@ -44,19 +43,19 @@ public class UserManager implements Runnable {
     // Generatore id per un post
     private final AtomicInteger idGenerator;
     // Variabile di terminazione
-    private boolean exit = true;
+    private boolean exit = false;
     // Oggetto gson
     private final Gson gson;
     // Oggetto gson che considera le annotazioni
     private final Gson gsonExpose;
     // Tipo dell'oggetto restituito
-    Type CodeReturnType;
+    private final Type CodeReturnType;
     // Tipo post
-    Type postType;
-    // Tipo walllet
-    Type walletType;
+    private final Type postType;
+    // Tipo wallet
+    private final Type walletType;
     // Tipo mappa (utente, tags)
-    Type mapUserTagsType;
+    private final Type mapUserTagsType;
 
     public UserManager(Socket user, ConcurrentHashMap<String, String> users, ConcurrentHashMap<String, ArrayList<String>> tags, ConcurrentHashMap<String, NotifyFollowersInterface> stubs, ConcurrentHashMap<String, ArrayList<String>> followers, ConcurrentHashMap<String, ArrayList<String>> followings, ConcurrentHashMap<String, Vector<Post>> blogs, ConcurrentHashMap<Integer, Post> posts, ConcurrentHashMap<String, Wallet> wallets, ListInteractions listInteractions, Vector<String> connectedUsers, AtomicInteger idGenerator, String multicastAddress, int multicastPort) {
         this.user = user;
@@ -83,30 +82,33 @@ public class UserManager implements Runnable {
 
     @Override
     public void run() {
+        // inizializzo gli stream di comunicazioni
         try (PrintWriter response = new PrintWriter(user.getOutputStream());
              BufferedReader request = new BufferedReader(new InputStreamReader(user.getInputStream()))) {
-            // Comunico ip e porta relative al gruppo di multicast
+            // Comunico al client ip e porta relative al gruppo di multicast
             response.println(multicastAddress);
             response.println(multicastPort);
             response.flush();
 
             String command, username, password, title, content;
             int id = 0, vote;
-
-            while (exit) {
+            // Rispondo alle richieste del client fino alla terminazione esplicita del client
+            while (!exit) {
+                // Attendo una richiesta del client
                 command = request.readLine();
+                // Il client si è disconnesso improvvisamente
                 if (command == null) {
                     exitNow();
                     return;
                 }
-
+                // Il server è in chiusura
                 if (Thread.currentThread().isInterrupted()) {
                     response.println(502);
                     response.println("server in chiusura");
                     response.flush();
                     return;
                 }
-
+                // Eseguo la funzione che implementa il comando richiesto
                 switch (command) {
                     case "exit":
                         exit(response);
@@ -241,7 +243,7 @@ public class UserManager implements Runnable {
         response.flush();
 
         try { user.close(); } catch (IOException ignore) {}
-        exit = false;
+        exit = true;
     }
 
     private void exitNow() {
@@ -255,6 +257,7 @@ public class UserManager implements Runnable {
     }
 
     private void login(String username, String password, PrintWriter response) {
+        // Argomenti null
         if (username == null || password == null) {
             response.println(400);
             response.println("errore, uno o più argomenti uguali a null");
@@ -290,6 +293,7 @@ public class UserManager implements Runnable {
         }
         // Controllo se l'utente è registrato
         if (users.containsKey(username)) {
+            // Controllo se la password è corretta
             if (!users.get(username).equals(password)) {
                 response.println(407);
                 response.println("errore, password non corretta");
@@ -297,7 +301,6 @@ public class UserManager implements Runnable {
                 return;
             }
 
-            // L'utente è già connesso su un altro terminale
             boolean absent;
 
             synchronized (connectedUsers) {
@@ -305,6 +308,7 @@ public class UserManager implements Runnable {
                 if (absent) connectedUsers.add(username);
             }
 
+            // Controllo se l'utente è già connesso su un altro terminale
             if (absent) {
                 usernameLogin = username;
 
@@ -323,13 +327,14 @@ public class UserManager implements Runnable {
     }
 
     private void logout(PrintWriter response) {
+        // Controllo che ci sia un utente connesso
         if (usernameLogin == null) {
             response.println(406);
             response.println("errore, nessun utente connesso");
             response.flush();
             return;
         }
-
+        // Rimuovo l'utente dalla lista degli utenti connessi
         connectedUsers.remove(usernameLogin);
 
         response.println(200);
@@ -352,10 +357,14 @@ public class UserManager implements Runnable {
         response.println("invio lista utenti tags");
         response.flush();
 
+        // Creo la lista da inviare
         HashMap<String, ArrayList<String>> usersTags = new HashMap<>();
+        // Recupero la lista dei tag dell'utente connesso
         ArrayList<String> userLoginTags = tags.get(usernameLogin);
-
-        for (String name : tags.keySet()) {
+        // Inserisco nella lista da inviare gli utenti che hanno almeno
+        // un tag in comune con l'utente connesso
+        for (String name : users.keySet()) {
+            // Controllo di non inserire l'utente connesso
             if (!name.equals(usernameLogin)) {
                 ArrayList<String> nameTags = tags.get(name);
                 boolean match = false;
@@ -366,11 +375,11 @@ public class UserManager implements Runnable {
                         break;
                     }
                 }
-
+                // Se c'è stato un match inserisco l'utente nella lista
                 if (match) usersTags.put(name, nameTags);
             }
         }
-
+        // Invio la lista
         response.println(gson.toJson(usersTags, mapUserTagsType));
         response.flush();
     }
@@ -387,9 +396,9 @@ public class UserManager implements Runnable {
         response.println(201);
         response.println("invio lista utenti");
         response.flush();
-
+        // Recupero la lista dei following
         ArrayList<String> listUsers = followings.get(usernameLogin);
-
+        // Invio la lista
         response.println(gson.toJson(listUsers));
         response.flush();
     }
@@ -450,16 +459,15 @@ public class UserManager implements Runnable {
             return;
         }
 
-        // Controllo se l'utente segue già username
         ArrayList<String> listFollowing = followings.get(usernameLogin);
-
+        // Controllo se l'utente segue già username
         if (listFollowing.contains(username)) {
             response.println(410);
             response.println("errore, segui già " + username);
             response.flush();
             return;
         }
-
+        // Recupero la lista dei followers di username
         ArrayList<String> listFollowers = followers.get(username);
 
         synchronized (listFollowing) {
@@ -478,16 +486,21 @@ public class UserManager implements Runnable {
         try {
             if (notifyUsername != null) code = gson.fromJson(notifyUsername.addFollower(usernameLogin), CodeReturnType);
         } catch (RemoteException ignore) {
+            // Richiesta eseguita con successo, ma la notifica è fallita
             response.println(200);
             response.println("Ora segui " + username + ", la notifica non è andata a buon fine");
             response.flush();
             return;
         }
-
+        // Invio Codice Ok
         response.println(200);
-
-        if (code != null && code.getCode() != 200) response.println("Ora segui " + username + ", la notifica non è andata a buon fine");
-        else response.println("Ora segui " + username);
+        // Invio messaggio
+        if (code != null && code.getCode() != 200)
+            // Richiesta eseguita con successo, ma la notifica è fallita
+            response.println("Ora segui " + username + ", la notifica non è andata a buon fine");
+        else
+            // Ok
+            response.println("Ora segui " + username);
 
         response.flush();
     }
@@ -521,16 +534,16 @@ public class UserManager implements Runnable {
             response.flush();
             return;
         }
-        // Controllo se l'utente segue username
-        ArrayList<String> listFollowing = followings.get(usernameLogin);
 
+        ArrayList<String> listFollowing = followings.get(usernameLogin);
+        // Controllo se l'utente segue username
         if (!listFollowing.contains(username)) {
             response.println(411);
             response.println("errore, non segui " + username);
             response.flush();
             return;
         }
-
+        // Recupero la lista dei followers di username
         ArrayList<String> listFollowers = followers.get(username);
 
         synchronized (listFollowing) {
@@ -549,16 +562,21 @@ public class UserManager implements Runnable {
         try {
             if (notifyUsername != null) code = gson.fromJson(notifyUsername.removeFollower(usernameLogin), CodeReturnType);
         } catch (RemoteException ignore) {
+            // Richiesta eseguita con successo, ma la notifica è fallita
             response.println(200);
             response.println("Ora non segui più " + username + ", la notifica non è andata a buon fine");
             response.flush();
             return;
         }
-
+        // Invio Codice Ok
         response.println(200);
-
-        if (code != null && code.getCode() != 200) response.println("Ora non segui più " + username + ", la notifica non è andata a buon fine");
-        else response.println("Ora non segui più " + username);
+        // Invio messaggio
+        if (code != null && code.getCode() != 200)
+            // Richiesta eseguita con successo, ma la notifica è fallita
+            response.println("Ora non segui più " + username + ", la notifica non è andata a buon fine");
+        else
+            // Ok
+            response.println("Ora non segui più " + username);
 
         response.flush();
     }
@@ -576,13 +594,13 @@ public class UserManager implements Runnable {
         response.println("invio i post");
         response.flush();
 
-        // Recupero la lista dei post
+        // Recupero la lista dei post nel blog
         Vector<Post> usernameBlog = blogs.get(usernameLogin);
 
         synchronized (usernameBlog) {
             response.println(usernameBlog.size());
             response.flush();
-
+            // Invio i post
             for (Post p : usernameBlog) {
                 synchronized (p) {
                     response.println(gsonExpose.toJson(p, postType));
@@ -609,21 +627,20 @@ public class UserManager implements Runnable {
         ArrayList<String> listFollowing = followings.get(usernameLogin);
         Vector<Post> postsFollowed;
 
-        // Invio il numero di following
+        // Invio il numero di utenti seguiti
         response.println(listFollowing.size());
         response.flush();
 
         for (String nameFollowed : listFollowing) {
-            // Recupero il blog di ogni followed
+            // Recupero il blog di ogni utente seguito
             postsFollowed = blogs.get(nameFollowed);
 
             synchronized (postsFollowed) {
-                // Invio il numero di post all'interno del blog
+                // Invio il numero dei post all'interno del blog
                 response.println(postsFollowed.size());
                 response.flush();
-
+                // Invio i post nel blog
                 for (Post p : postsFollowed) {
-                    // Invio i post nel blog
                     synchronized (p) {
                         response.println(gsonExpose.toJson(p, postType));
                     }
@@ -676,7 +693,7 @@ public class UserManager implements Runnable {
             }
         }
 
-        // ok
+        // Ok
         response.println(200);
         response.println("post pubblicato (id = " + newPost.getId() + ")");
         response.flush();
@@ -729,7 +746,7 @@ public class UserManager implements Runnable {
         }
         // Elimino il post dalla lista delle interazioni
         listInteractions.removePost(id);
-        // ok
+        // Ok
         response.println(200);
         response.println("post (id = " + id + ") cancellato");
         response.flush();
@@ -769,23 +786,22 @@ public class UserManager implements Runnable {
 
                 Iterator<String> listFollowingIterator = listFollowing.iterator();
                 Vector<Post> postsFollowed;
-                Iterator<Post> postFollowedIterator;
+                Iterator<Post> postsFollowedIterator;
 
                 while (listFollowingIterator.hasNext() && !find) {
-                    // Recupero il blog di ogni followed
+                    // Recupero il blog di ogni utente seguito
                     postsFollowed = blogs.get(listFollowingIterator.next());
 
                     synchronized (postsFollowed) {
-                        postFollowedIterator = postsFollowed.iterator();
-
-                        while (postFollowedIterator.hasNext() && !find) {
-                            if (postFollowedIterator.next().getId().equals(p.getId())) {
+                        postsFollowedIterator = postsFollowed.iterator();
+                        // Cerco il post nel blog
+                        while (postsFollowedIterator.hasNext() && !find) {
+                            if (postsFollowedIterator.next().getId().equals(p.getId())) {
                                 find = true;
                             }
                         }
                     }
                 }
-
                 // Se non trovato cerco il post nel blog (rewin post)
                 if (!find) {
                     HashSet<String> usersRewin = p.getUsersRewin();
@@ -866,17 +882,17 @@ public class UserManager implements Runnable {
 
                 Iterator<String> listFollowingIterator = listFollowing.iterator();
                 Vector<Post> postsFollowed;
-                Iterator<Post> postFollowedIterator;
+                Iterator<Post> postsFollowedIterator;
 
                 while (listFollowingIterator.hasNext() && !find) {
                     // Recupero il blog di ogni followed
                     postsFollowed = blogs.get(listFollowingIterator.next());
 
                     synchronized (postsFollowed) {
-                        postFollowedIterator = postsFollowed.iterator();
-
-                        while (postFollowedIterator.hasNext() && !find) {
-                            if (postFollowedIterator.next().getId().equals(p.getId())) {
+                        postsFollowedIterator = postsFollowed.iterator();
+                        // Cerco il post nel blog
+                        while (postsFollowedIterator.hasNext() && !find) {
+                            if (postsFollowedIterator.next().getId().equals(p.getId())) {
                                 find = true;
                             }
                         }
@@ -897,7 +913,7 @@ public class UserManager implements Runnable {
             // Inserisco nel post che usernameLogin ha eseguito il rewin
             p.addUserRewin(usernameLogin);
         }
-        // ok
+        // Ok
         response.println(200);
         response.println("eseguito il rewin del post (id = " + id + ")");
         response.flush();
@@ -939,26 +955,26 @@ public class UserManager implements Runnable {
 
         if (!listFollowing.contains(p.getAuthor())) {
             // Cerco il post all'interno del feed
-            Vector<Post> postsFollowed;
             boolean find = false;
 
+            Vector<Post> postsFollowed;
             Iterator<String> listFollowingIterator = listFollowing.iterator();
+            Iterator<Post> postsFollowedIterator;
 
             while (listFollowingIterator.hasNext() && !find) {
                 // Recupero il blog di ogni followed
                 postsFollowed = blogs.get(listFollowingIterator.next());
 
                 synchronized (postsFollowed) {
-                    Iterator<Post> postFollowedIterator = postsFollowed.iterator();
-
-                    while (postFollowedIterator.hasNext() && !find) {
-                        if (postFollowedIterator.next().getId().equals(p.getId())) {
+                    postsFollowedIterator = postsFollowed.iterator();
+                    // Cerco il post nel blog
+                    while (postsFollowedIterator.hasNext() && !find) {
+                        if (postsFollowedIterator.next().getId().equals(p.getId())) {
                             find = true;
                         }
                     }
                 }
             }
-
             // Post non trovato
             if (!find) {
                 response.println(417);
@@ -982,12 +998,10 @@ public class UserManager implements Runnable {
             response.flush();
             return;
         }
-
-        // Aggiungo il voto alla lista delle interazioni
+        // Aggiungo il voto nella lista delle interazioni
         if (vote == 1) listInteractions.addUpVote(id, usernameLogin);
         else listInteractions.addDownVote(id);
-
-        // ok
+        // Ok
         response.println(200);
         response.println("post (id = " + id + ") votato");
         response.flush();
@@ -1028,26 +1042,26 @@ public class UserManager implements Runnable {
         ArrayList<String> listFollowing = followings.get(usernameLogin);
         if (!listFollowing.contains(p.getAuthor())) {
             // Cerco il post all'interno del feed
-            Vector<Post> postsFollowed;
             boolean find = false;
 
             Iterator<String> listFollowingIterator = listFollowing.iterator();
+            Vector<Post> postsFollowed;
+            Iterator<Post> postsFollowedIterator;
 
             while (listFollowingIterator.hasNext() && !find) {
-                // Recupero il blog di ogni followed
+                // Recupero il blog di ogni utente seguito
                 postsFollowed = blogs.get(listFollowingIterator.next());
 
                 synchronized (postsFollowed) {
-                    Iterator<Post> postFollowedIterator = postsFollowed.iterator();
-
-                    while (postFollowedIterator.hasNext() && !find) {
-                        if (postFollowedIterator.next().getId().equals(p.getId())) {
+                    postsFollowedIterator = postsFollowed.iterator();
+                    // Cerco il post nel blog
+                    while (postsFollowedIterator.hasNext() && !find) {
+                        if (postsFollowedIterator.next().getId().equals(p.getId())) {
                             find = true;
                         }
                     }
                 }
             }
-
             // Post non trovato
             if (!find) {
                 response.println(417);
@@ -1058,10 +1072,9 @@ public class UserManager implements Runnable {
         }
         // Aggiungo il commento
         p.addComment(usernameLogin, comment);
-        // Aggiungo il commento alla lista delle interazioni
+        // Aggiungo il commento nella lista delle interazioni
         listInteractions.addComment(id, usernameLogin);
-
-        // ok
+        // Ok
         response.println(200);
         response.println("commento aggiunto");
         response.flush();
@@ -1106,9 +1119,10 @@ public class UserManager implements Runnable {
         InputStream inStreamURL = null;
 
         try {
+            // Apro uno stream di input sul sito web random.org
             URL randomSiteURL = new URL("https://www.random.org/decimal-fractions/?num=1&dec=6&col=1&format=plain&rnd=new");
             inStreamURL = randomSiteURL.openStream();
-
+            // Leggo il tasso di cambio (numero decimale)
             byte[] decimalByte = inStreamURL.readAllBytes();
             String decimalString = new String(decimalByte);
             double exchangeRate = Double.parseDouble(decimalString);
@@ -1116,17 +1130,18 @@ public class UserManager implements Runnable {
             response.println(201);
             response.println("invio il valore convertito");
             response.flush();
-
+            // Converto wincoin in bitcoin
             double btc = wincoin * exchangeRate;
-
+            // Invio il valore in bitcoin
             response.println(btc);
             response.flush();
         } catch (NumberFormatException | IOException e) {
+            // Conversione non riuscita
             response.println(501);
             response.println("errore, conversione non riuscita");
             response.flush();
         }
-
+        // Chiudo lo stream
         try {
             inStreamURL.close();
         } catch (NullPointerException | IOException ignore) {}

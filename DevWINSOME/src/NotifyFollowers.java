@@ -8,17 +8,22 @@ import java.rmi.RemoteException;
 import java.rmi.server.UnicastRemoteObject;
 import java.util.Vector;
 
+// Oggetto remoto inviato dal client al server (RMI callback),
+// utilizzato dal server per aggiornare la lista dei follower del client
 public class NotifyFollowers extends UnicastRemoteObject implements NotifyFollowersInterface {
-    // Lista dei followers dell'utente connesso
-    private Vector<String> listFollowers;
+    // Lista dei followers del client
+    private final Vector<String> listFollowers;
+    // Tipo della lista dei followers
+    private final Type listFollowersType;
     // Tipo dell'oggetto restituito
-    Type CodeReturnType;
+    private final Type CodeReturnType;
     // Oggetto gson
-    Gson gson;
+    private final Gson gson;
 
     public NotifyFollowers(Vector<String> listFollowers) throws RemoteException {
         super();
         this.listFollowers = listFollowers;
+        listFollowersType = new TypeToken<Vector<String>>(){}.getType();
         CodeReturnType = new TypeToken<CodeReturn>(){}.getType();
         gson = new Gson();
     }
@@ -31,10 +36,9 @@ public class NotifyFollowers extends UnicastRemoteObject implements NotifyFollow
         if (listUsers == null) return gson.toJson(new CodeReturn(400, "errore, listUsers uguale a null"), CodeReturnType);
         // listUsers vuoto
         if (listUsers.isEmpty()) return gson.toJson(new CodeReturn(401, "errore, listUsers vuoto"), CodeReturnType);
-
-        Type vectorType = new TypeToken<Vector<String>>(){}.getType();
-        listFollowers.addAll(gson.fromJson(listUsers, vectorType));
-
+        // Inizializzo la lista dei followers
+        listFollowers.addAll(gson.fromJson(listUsers, listFollowersType));
+        // Ok
         return gson.toJson(new CodeReturn(200, "ok"), CodeReturnType);
     }
 
@@ -44,11 +48,11 @@ public class NotifyFollowers extends UnicastRemoteObject implements NotifyFollow
         if (username == null) return gson.toJson(new CodeReturn(400, "errore, username uguale a null"), CodeReturnType);
         // Username vuoto
         if (username.isEmpty()) return gson.toJson(new CodeReturn(401, "errore, username vuoto"), CodeReturnType);
-
+        // Aggiungo il follower
         synchronized (listFollowers) {
             if (!listFollowers.contains(username)) listFollowers.add(username);
         }
-
+        // Ok
         return gson.toJson(new CodeReturn(200, "username aggiunto"), CodeReturnType);
     }
 
@@ -58,9 +62,9 @@ public class NotifyFollowers extends UnicastRemoteObject implements NotifyFollow
         if (username == null) return gson.toJson(new CodeReturn(400, "errore, username uguale a null"), CodeReturnType);
         // Username vuoto
         if (username.isEmpty()) return gson.toJson(new CodeReturn(401, "errore, username vuoto"), CodeReturnType);
-
+        // Rimuovo il follower
         listFollowers.remove(username);
-
+        // Ok
         return gson.toJson(new CodeReturn(200, "username aggiunto"), CodeReturnType);
     }
 }
