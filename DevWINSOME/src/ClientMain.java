@@ -439,12 +439,23 @@ public class ClientMain {
             }
 
             // Controllo di aver trovato tutte le stringhe di configurazione
-            for (int val : stringSet) {
-                if (val == 0) {
-                    System.err.println("File di configurazione: file incompleto!");
-                    System.exit(1);
+            boolean error = false;
+
+            for (int i = 0; i < 5; i++) {
+                if (stringSet[i] == 0) {
+                    switch (i) {
+                        case 0: System.err.println("File di configurazione: SERVER_ADDRESS -> valore mancante"); break;
+                        case 1: System.err.println("File di configurazione: PORT_TCP -> valore mancante"); break;
+                        case 2: System.err.println("File di configurazione: TIMEOUT -> valore mancante"); break;
+                        case 3: System.err.println("File di configurazione: REGISTRY_ADDRESS -> valore mancante"); break;
+                        case 4: System.err.println("File di configurazione: REGISTRY_PORT -> valore mancante"); break;
+                    }
+
+                    error = true;
                 }
             }
+
+            if (error) System.exit(1);
         } catch (FileNotFoundException e) {
             System.err.println("File di configurazione: " + e.getMessage());
             System.exit(1);

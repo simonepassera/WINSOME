@@ -5,7 +5,7 @@ import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-// Thread che riceve la notifica relativa calcolo delle ricompense tramite il gruppo multicast
+// Thread che riceve la notifica relativa calcolo delle ricompense tramite il gruppo di multicast
 public class WalletUpdate implements Runnable {
     // Ip gruppo multicast
     private final InetAddress ip;
